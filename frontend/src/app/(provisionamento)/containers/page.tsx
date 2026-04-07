@@ -56,6 +56,15 @@ export default function ContainersPage() {
             </Link>
           ))}
         </div>
+
+        <div className="flex h-[71px] items-center justify-center py-4">
+          <Link
+            href="/containers/criar"
+            className="flex h-[39px] w-[214px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
+          >
+            Criar Container
+          </Link>
+        </div>
       </main>
     </div>
   );
