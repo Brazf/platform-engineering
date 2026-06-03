@@ -1,0 +1,80 @@
+package proxmox
+
+// VMCreateRequest contém os parâmetros para criar uma VM QEMU via
+// POST /nodes/{node}/qemu
+type VMCreateRequest struct {
+	VMID     int    // 0 = obter automaticamente via /cluster/nextid
+	Name     string
+	CPUCores int
+	MemoryMB int    // RAM em MB
+	DiskGB   int    // tamanho do disco raiz em GB
+	Storage  string // storage Proxmox, ex: "local-lvm". Default: "local-lvm"
+	OSType   string // "l26" Linux, "win10" Win 10, "win11" Win 11, "other"
+	ISO      string // caminho da ISO, ex: "local:iso/ubuntu-22.04.iso"
+	Network  string // config de rede. Default: "virtio,bridge=vmbr0"
+}
+
+// VMStatus representa o estado de runtime de uma VM obtido via
+// GET /nodes/{node}/qemu/{vmid}/status/current
+type VMStatus struct {
+	VMID    int
+	Name    string
+	Status  string  // "running" | "stopped" | "paused"
+	CPU     float64 // fração de uso de CPU (0.0–1.0)
+	MemUsed int64   // memória em uso (bytes)
+	MemMax  int64   // memória total alocada (bytes)
+	Uptime  int64   // tempo ligada em segundos
+}
+
+// VNCProxyResponse contém as credenciais retornadas por
+// POST /nodes/{node}/qemu/{vmid}/vncproxy?websocket=1
+type VNCProxyResponse struct {
+	Ticket string // ticket temporário de autenticação VNC
+	Port   int    // porta VNC no nó Proxmox
+	Cert   string // certificado TLS do servidor VNC (PEM, pode ser vazio)
+}
+
+// TaskStatus representa o estado de uma tarefa assíncrona do Proxmox.
+// Obtido via GET /nodes/{node}/tasks/{upid}/status
+type TaskStatus struct {
+	UPID       string // Unique Process ID da tarefa
+	Status     string // "running" | "stopped"
+	ExitStatus string // "OK" ou mensagem de erro quando Status == "stopped"
+	Type       string // tipo da tarefa, ex: "qmcreate", "qmstart", "qmdestroy"
+}
+
+// --- Tipos privados para decodificação do JSON da API do Proxmox ---
+
+// pveEnvelope é o wrapper JSON de todas as respostas da API: {"data": T}
+type pveEnvelope[T any] struct {
+	Data T `json:"data"`
+}
+
+type pveVMStatus struct {
+	VMID   int     `json:"vmid"`
+	Name   string  `json:"name"`
+	Status string  `json:"status"`
+	CPU    float64 `json:"cpu"`
+	Mem    int64   `json:"mem"`
+	MaxMem int64   `json:"maxmem"`
+	Uptime int64   `json:"uptime"`
+}
+
+type pveQEMUEntry struct {
+	VMID   int    `json:"vmid"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+type pveVNCProxy struct {
+	Ticket string `json:"ticket"`
+	Port   int    `json:"port"`
+	Cert   string `json:"cert"`
+}
+
+type pveTaskStatus struct {
+	UPID       string `json:"upid"`
+	Status     string `json:"status"`
+	ExitStatus string `json:"exitstatus"`
+	Type       string `json:"type"`
+}
