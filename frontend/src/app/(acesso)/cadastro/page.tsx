@@ -1,7 +1,35 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiRegister } from "@/lib/api";
 
 export default function CadastroPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [matricula, setMatricula] = useState(""); // usada como senha inicial
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleCadastro() {
+    setError("");
+    if (!email || !matricula) {
+      setError("Preencha email e matrícula.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await apiRegister(email, matricula, "aluno");
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao cadastrar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-white px-4 py-10 md:px-10 md:py-20">
       <div className="grid w-full max-w-[1280px] items-center gap-10 md:grid-cols-[736px_464px] md:gap-10">
@@ -38,6 +66,8 @@ export default function CadastroPage() {
                 <input
                   type="email"
                   placeholder="Email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   className="h-full w-full bg-transparent text-[14px] italic outline-none placeholder:text-black"
                 />
               </div>
@@ -50,6 +80,8 @@ export default function CadastroPage() {
                 <input
                   type="text"
                   placeholder="Matrícula"
+                  value={matricula}
+                  onChange={e => setMatricula(e.target.value)}
                   className="h-full w-full bg-transparent text-[14px] italic outline-none placeholder:text-black"
                 />
               </div>
@@ -67,12 +99,21 @@ export default function CadastroPage() {
               </div>
             </div>
 
+            {error && (
+              <p className="text-[12px] leading-none text-[#B21D38]">{error}</p>
+            )}
+
             <div className="mt-2 grid grid-cols-2 gap-3">
               <Link href="/primeiro-acesso" className="flex h-[39px] items-center justify-center rounded-[20px] border border-[#1351B4] text-[16.8px] leading-none font-semibold text-[#1351B4]">
                 Voltar
               </Link>
-              <button type="button" className="h-[39px] rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white">
-                Continuar
+              <button
+                type="button"
+                onClick={handleCadastro}
+                disabled={loading}
+                className="h-[39px] rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white disabled:opacity-60"
+              >
+                {loading ? "Cadastrando..." : "Continuar"}
               </button>
             </div>
 

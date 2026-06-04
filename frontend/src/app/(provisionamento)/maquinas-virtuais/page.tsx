@@ -1,35 +1,30 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { InternalBreadcrumb, InternalHeader } from "@/components";
+import { apiListVMs, type VM } from "@/lib/api";
 
-type VmItem = {
-  id: string;
-  nome: string;
-  descricao: string;
-  dataCriacao: string;
-};
-
-const vms: VmItem[] = [
-  {
-    id: "maquina-de-teste",
-    nome: "MÁQUINA DE TESTE",
-    descricao: "CRIADA PARA REALIZAR DEPLOY DE UM APP DE TESTES",
-    dataCriacao: "20/02/2014",
-  },
-  {
-    id: "maquina-linux",
-    nome: "MÁQUINA LINUX",
-    descricao: "CRIADA PARA SUBIR UM SERVIDOR",
-    dataCriacao: "10/02/2017",
-  },
-  {
-    id: "microsoft-sqlserver",
-    nome: "MICROSOFT SQLSERVER",
-    descricao: "CRIADA PARA UM SUBIR UM BANCO SQLSERVER",
-    dataCriacao: "01/01/2026",
-  },
-];
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("pt-BR");
+  } catch {
+    return "-";
+  }
+}
 
 export default function MaquinasVirtuaisPage() {
+  const [vms, setVms] = useState<VM[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiListVMs()
+      .then(setVms)
+      .catch(err => setError(err instanceof Error ? err.message : "Erro ao carregar VMs."))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#F8F8F8]">
       <InternalHeader />
@@ -43,6 +38,18 @@ export default function MaquinasVirtuaisPage() {
           <h1 className="text-[41.8px] leading-none font-light text-black">Máquina Virtual</h1>
         </div>
 
+        {loading && (
+          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">
+            CARREGANDO...
+          </p>
+        )}
+
+        {error && (
+          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#B21D38]">
+            {error.toUpperCase()}
+          </p>
+        )}
+
         <div className="flex flex-col gap-4">
           {vms.map((vm) => (
             <Link
@@ -50,11 +57,17 @@ export default function MaquinasVirtuaisPage() {
               href={`/maquinas-virtuais/${vm.id}`}
               className="block h-[130px] bg-white px-3 py-[25px] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]"
             >
-              <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">NOME: {vm.nome}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DESCRIÇÃO: {vm.descricao}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DATA DE CRIAÇÃO: {vm.dataCriacao}</p>
+              <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">NOME: {vm.name}</p>
+              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">SISTEMA: {vm.os_template}</p>
+              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DATA DE CRIAÇÃO: {formatDate(vm.created_at)}</p>
             </Link>
           ))}
+
+          {!loading && !error && vms.length === 0 && (
+            <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">
+              NENHUMA MÁQUINA VIRTUAL ENCONTRADA.
+            </p>
+          )}
         </div>
 
         <div className="flex h-[71px] items-center justify-center py-4">

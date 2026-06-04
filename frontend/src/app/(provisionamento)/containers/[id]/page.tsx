@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { InternalBreadcrumb, InternalHeader } from "@/components";
 
+// Necessário para next build com output: "export" e rota dinâmica.
+export function generateStaticParams() {
+  return [];
+}
+
 export default function ContainerDetalhePage() {
   return (
     <div className="min-h-screen bg-[#F8F8F8]">

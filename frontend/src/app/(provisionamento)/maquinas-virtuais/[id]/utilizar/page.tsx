@@ -6,6 +6,11 @@ import Link from "next/link";
 import { InternalCompactHeader } from "@/components";
 import "@xterm/xterm/css/xterm.css";
 
+// Necessário para next build com output: "export" e rota dinâmica.
+export function generateStaticParams() {
+  return [];
+}
+
 export default function UtilizarMaquinaVirtualPage() {
   const params = useParams();
   const id = params?.id as string;
@@ -45,10 +50,15 @@ export default function UtilizarMaquinaVirtualPage() {
 
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      // Usa o mesmo host/porta da página — em dev vai para :8080 diretamente,
-      // em produção (Docker) passa pelo nginx na porta 80.
-      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsURL = `${wsProto}//${window.location.host}/api/vms/${id}/terminal${
+
+      // Dev: define NEXT_PUBLIC_API_BASE=http://localhost:8080 em .env.local
+      // Docker (nginx proxy): API_BASE vazio → usa window.location.host na porta 80
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
+      const wsBase = apiBase
+        ? apiBase.replace(/^http/, "ws")
+        : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+
+      const wsURL = `${wsBase}/api/vms/${id}/terminal${
         token ? `?token=${encodeURIComponent(token)}` : ""
       }`;
 

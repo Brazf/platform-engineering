@@ -1,0 +1,121 @@
+// Base URL configurável via variável de ambiente.
+// Dev: NEXT_PUBLIC_API_BASE=http://localhost:8080 em .env.local
+// Docker (nginx proxy): deixar em branco → URLs relativas
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
+}
+
+export function saveAuth(token: string, role: string): void {
+  localStorage.setItem("token", token);
+  localStorage.setItem("role", role);
+}
+
+export function clearAuth(): void {
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+}
+
+export function getRole(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("role");
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(init.headers as Record<string, string>),
+  };
+
+  const res = await fetch(API_BASE + path, { ...init, headers });
+
+  if (res.status === 401) {
+    clearAuth();
+    if (typeof window !== "undefined") window.location.href = "/";
+    throw new Error("Não autorizado");
+  }
+
+  if (!res.ok) {
+    let msg = `Erro ${res.status}`;
+    try {
+      const body = await res.json();
+      msg = (body as { error?: string }).error ?? msg;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export async function apiLogin(email: string, password: string) {
+  return request<{ token: string; user: { id: string; email: string; role: string } }>(
+    "/api/auth/login",
+    { method: "POST", body: JSON.stringify({ email, password }) }
+  );
+}
+
+export async function apiRegister(email: string, password: string, role: string) {
+  return request<{ id: string; email: string; role: string }>(
+    "/api/auth/register",
+    { method: "POST", body: JSON.stringify({ email, password, role }) }
+  );
+}
+
+// ─── VMs ──────────────────────────────────────────────────────────────────────
+
+export type VMStatus = "creating" | "running" | "stopped" | "error";
+
+export interface VM {
+  id: string;
+  proxmox_vm_id: number;
+  name: string;
+  cpu_cores: number;
+  memory_mb: number;
+  disk_gb: number;
+  os_template: string;
+  node: string;
+  pool: string;
+  tags: string;
+  status: VMStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function apiListVMs(): Promise<VM[]> {
+  return request<VM[]>("/api/vms");
+}
+
+export async function apiGetVM(id: string): Promise<VM> {
+  return request<VM>(`/api/vms/${id}`);
+}
+
+export async function apiCreateVM(data: {
+  name: string;
+  cpu_cores: number;
+  memory_mb: number;
+  disk_gb: number;
+  os_template: string;
+  node: string;
+  pool?: string;
+}): Promise<{ id: string; proxmox_vm_id: number; name: string; status: VMStatus; websocket_url: string }> {
+  return request("/api/vms", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function apiStartVM(id: string): Promise<void> {
+  return request<void>(`/api/vms/${id}/start`, { method: "POST" });
+}
+
+export async function apiStopVM(id: string): Promise<void> {
+  return request<void>(`/api/vms/${id}/stop`, { method: "POST" });
+}
+
+export async function apiDeleteVM(id: string): Promise<void> {
+  return request<void>(`/api/vms/${id}`, { method: "DELETE" });
+}
