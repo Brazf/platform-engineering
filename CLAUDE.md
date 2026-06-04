@@ -237,6 +237,6 @@ containers      — (fase futura)
 |------|--------------------------------------------|-----------|
 | 1    | Autenticação (JWT) + CRUD de usuários      | ✅ concluído |
 | 2    | Criação e listagem de VMs no Proxmox       | ✅ concluído |
-| 3    | Terminal web interativo para VMs (xterm.js) | 🔲 Pendente |
+| 3    | Terminal web interativo para VMs (xterm.js) | ✅ concluído |
 | 4    | Containers LXC / Docker Hub                | 🔲 Futura  |
 | 5    | Dashboard com uso de recursos              | 🔲 Futura  |

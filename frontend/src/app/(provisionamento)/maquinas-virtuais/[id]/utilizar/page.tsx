@@ -45,7 +45,10 @@ export default function UtilizarMaquinaVirtualPage() {
 
       const token =
         typeof window !== "undefined" ? localStorage.getItem("token") : null;
-      const wsURL = `ws://${window.location.hostname}:8080/api/vms/${id}/terminal${
+      // Usa o mesmo host/porta da página — em dev vai para :8080 diretamente,
+      // em produção (Docker) passa pelo nginx na porta 80.
+      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsURL = `${wsProto}//${window.location.host}/api/vms/${id}/terminal${
         token ? `?token=${encodeURIComponent(token)}` : ""
       }`;
 
