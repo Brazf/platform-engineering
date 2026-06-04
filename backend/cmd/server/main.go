@@ -37,7 +37,7 @@ func main() {
 
 	authH := handler.NewAuthHandler(authUC)
 	vmH := handler.NewVMHandler(vmUC)
-	terminalH := wshandler.NewTerminalHandler(proxmoxClient)
+	terminalH := wshandler.NewTerminalHandler(proxmoxClient, vmRepo, proxmoxClient.NodeHost())
 
 	// 4. Roteamento
 	r := gin.Default()

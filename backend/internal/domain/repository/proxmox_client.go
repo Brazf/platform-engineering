@@ -41,6 +41,11 @@ type ProxmoxClientInterface interface {
 	// Proxmox: GET /nodes/{node}/qemu
 	ListVMs(ctx context.Context) ([]proxmox.VMStatus, error)
 
+	// GetTermProxy abre um terminal de texto para a VM via Proxmox termproxy.
+	// Proxmox: POST /nodes/{node}/qemu/{vmid}/termproxy
+	// Retorna ticket e porta para conexão WebSocket direta ao nó Proxmox.
+	GetTermProxy(ctx context.Context, vmid int) (proxmox.TermProxyResponse, error)
+
 	// GetTaskStatus consulta o estado de uma tarefa assíncrona pelo UPID.
 	// Proxmox: GET /nodes/{node}/tasks/{upid}/status
 	GetTaskStatus(ctx context.Context, upid string) (proxmox.TaskStatus, error)
