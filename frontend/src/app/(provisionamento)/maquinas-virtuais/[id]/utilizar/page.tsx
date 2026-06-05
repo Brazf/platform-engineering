@@ -6,11 +6,6 @@ import Link from "next/link";
 import { InternalCompactHeader } from "@/components";
 import "@xterm/xterm/css/xterm.css";
 
-// Necessário para next build com output: "export" e rota dinâmica.
-export function generateStaticParams() {
-  return [];
-}
-
 export default function UtilizarMaquinaVirtualPage() {
   const params = useParams();
   const id = params?.id as string;

@@ -6,11 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import { InternalBreadcrumb, InternalHeader } from "@/components";
 import { apiGetVM, apiStartVM, apiStopVM, apiDeleteVM, type VM } from "@/lib/api";
 
-// Necessário para next build com output: "export" e rota dinâmica.
-export function generateStaticParams() {
-  return [];
-}
-
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString("pt-BR");
