@@ -1,7 +1,36 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiLogin, saveAuth } from "@/lib/api";
 
 export default function Home() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    setError("");
+    if (!email || !password) {
+      setError("Preencha email e senha.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiLogin(email, password);
+      saveAuth(res.token, res.user.role);
+      router.push("/pagina-inicial-usuario");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao entrar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-white px-4 py-10 md:px-10 md:py-20">
       <div className="grid w-full max-w-[1280px] items-center gap-10 md:grid-cols-[736px_464px] md:gap-10">
@@ -20,6 +49,9 @@ export default function Home() {
                 <input
                   type="email"
                   placeholder="Email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleLogin()}
                   className="h-full w-full bg-transparent text-[14px] italic outline-none placeholder:text-black"
                 />
               </div>
@@ -32,6 +64,9 @@ export default function Home() {
                 <input
                   type="password"
                   placeholder="Senha"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleLogin()}
                   className="h-full w-full bg-transparent text-[14px] italic outline-none placeholder:text-black"
                 />
                 <button type="button" aria-label="Mostrar senha" className="flex h-8 w-8 items-center justify-center text-[#1351B4]">
@@ -41,6 +76,10 @@ export default function Home() {
                 </button>
               </div>
             </div>
+
+            {error && (
+              <p className="text-[12px] leading-none text-[#B21D38]">{error}</p>
+            )}
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-[14px] text-black">
@@ -54,12 +93,14 @@ export default function Home() {
               </Link>
             </div>
 
-            <Link
-              href="/pagina-inicial-usuario"
-              className="flex h-[39px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={loading}
+              className="flex h-[39px] w-full items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white disabled:opacity-60"
             >
-              Entrar
-            </Link>
+              {loading ? "Entrando..." : "Entrar"}
+            </button>
 
             <div className="flex justify-center pt-1">
               <Link href="/primeiro-acesso" className="text-[16.8px] leading-none font-semibold text-[#1351B4]">

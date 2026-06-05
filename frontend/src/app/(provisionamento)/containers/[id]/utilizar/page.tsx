@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { InternalCompactHeader } from "@/components";
 
+// Necessário para next build com output: "export" e rota dinâmica.
+export function generateStaticParams() {
+  return [];
+}
+
 export default function UtilizarContainerPage() {
   return (
     <div className="min-h-screen bg-[#F8F8F8]">

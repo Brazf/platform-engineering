@@ -25,13 +25,16 @@ type jwtClaims struct {
 // 401 — token ausente, inválido ou expirado.
 func Auth(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") {
+		// Aceita token via header Authorization ou query param ?token= (para WebSocket)
+		var rawToken string
+		if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+			rawToken = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if qToken := c.Query("token"); qToken != "" {
+			rawToken = qToken
+		} else {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token de autenticação ausente"})
 			return
 		}
-
-		rawToken := strings.TrimPrefix(authHeader, "Bearer ")
 
 		token, err := jwt.ParseWithClaims(rawToken, &jwtClaims{}, func(t *jwt.Token) (any, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

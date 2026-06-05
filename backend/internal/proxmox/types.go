@@ -1,5 +1,11 @@
 package proxmox
 
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
+
 // VMCreateRequest contém os parâmetros para criar uma VM QEMU via
 // POST /nodes/{node}/qemu
 type VMCreateRequest struct {
@@ -11,7 +17,9 @@ type VMCreateRequest struct {
 	Storage  string // storage Proxmox, ex: "local-lvm". Default: "local-lvm"
 	OSType   string // "l26" Linux, "win10" Win 10, "win11" Win 11, "other"
 	ISO      string // caminho da ISO, ex: "local:iso/ubuntu-22.04.iso"
-	Network  string // config de rede. Default: "virtio,bridge=vmbr0"
+	Network  string // config de rede. Default: "model=virtio,bridge=vmbr0"
+	Pool     string   // resource pool do Proxmox, ex: "researchers" ou "students"
+	Tags     []string // tags para identificar a VM no painel do Proxmox
 }
 
 // VMStatus representa o estado de runtime de uma VM obtido via
@@ -32,6 +40,15 @@ type VNCProxyResponse struct {
 	Ticket string // ticket temporário de autenticação VNC
 	Port   int    // porta VNC no nó Proxmox
 	Cert   string // certificado TLS do servidor VNC (PEM, pode ser vazio)
+}
+
+// TermProxyResponse contém as credenciais retornadas por
+// POST /nodes/{node}/qemu/{vmid}/termproxy
+// Usado para abrir um terminal xterm.js via WebSocket.
+type TermProxyResponse struct {
+	Ticket string // ticket de autenticação temporário
+	Port   int    // porta do WebSocket de terminal no nó Proxmox
+	UPID   string // UPID da tarefa
 }
 
 // TaskStatus representa o estado de uma tarefa assíncrona do Proxmox.
@@ -70,6 +87,36 @@ type pveVNCProxy struct {
 	Ticket string `json:"ticket"`
 	Port   int    `json:"port"`
 	Cert   string `json:"cert"`
+}
+
+type pveTermProxy struct {
+	Ticket string      `json:"ticket"`
+	Port   flexInt     `json:"port"`
+	UPID   string      `json:"upid"`
+}
+
+// flexInt deserializa um campo JSON que pode chegar como número (5900)
+// ou como string ("5900") dependendo da versão do Proxmox.
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(data []byte) error {
+	// tenta número primeiro
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*f = flexInt(n)
+		return nil
+	}
+	// tenta string
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("flexInt: não é número nem string: %s", data)
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("flexInt: string não numérica: %q", s)
+	}
+	*f = flexInt(n)
+	return nil
 }
 
 type pveTaskStatus struct {

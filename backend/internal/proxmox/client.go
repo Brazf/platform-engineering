@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,13 +15,39 @@ import (
 	"github.com/proxlab/backend/internal/config"
 )
 
+// parseHostname extrai apenas o hostname de uma URL completa (ex: "https://192.168.1.1:8006" → "192.168.1.1").
+func parseHostname(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	return u.Hostname()
+}
+
 // ProxmoxClient é o cliente HTTP para a API REST do Proxmox VE.
 type ProxmoxClient struct {
 	baseURL     string
 	node        string
+	nodeHost    string // hostname sem porta, para conexões WebSocket diretas
 	tokenID     string
 	tokenSecret string
 	httpClient  *http.Client
+}
+
+// WsBase retorna a base URL do Proxmox com esquema WebSocket (wss://).
+// Usado pelo TerminalHandler para montar a URL do vncwebsocket.
+func (c *ProxmoxClient) WsBase() string {
+	return strings.Replace(c.baseURL, "https://", "wss://", 1)
+}
+
+// Node retorna o nome do nó configurado (ex: "pve01").
+func (c *ProxmoxClient) Node() string {
+	return c.node
+}
+
+// AuthHeader retorna o valor do header Authorization para o Proxmox API.
+func (c *ProxmoxClient) AuthHeader() string {
+	return fmt.Sprintf("PVEAPIToken=%s=%s", c.tokenID, c.tokenSecret)
 }
 
 // NewProxmoxClient cria um ProxmoxClient configurado a partir do Config da aplicação.
@@ -32,6 +59,7 @@ func NewProxmoxClient(cfg *config.Config) *ProxmoxClient {
 	return &ProxmoxClient{
 		baseURL:     cfg.ProxmoxHost,
 		node:        cfg.ProxmoxNode,
+		nodeHost:    parseHostname(cfg.ProxmoxHost),
 		tokenID:     cfg.ProxmoxTokenID,
 		tokenSecret: cfg.ProxmoxTokenSecret,
 		httpClient:  &http.Client{Transport: transport},
@@ -114,11 +142,12 @@ func (c *ProxmoxClient) CreateVM(ctx context.Context, req VMCreateRequest) (int,
 
 	storage := req.Storage
 	if storage == "" {
-		storage = "local-lvm"
+		storage = "local-zfs"
 	}
 	network := req.Network
 	if network == "" {
-		network = "virtio,bridge=vmbr0"
+		// model= explícito é necessário no Proxmox 8 — sem ele gera "duplicate key"
+		network = "model=virtio,bridge=vmbr0"
 	}
 
 	params := url.Values{}
@@ -127,9 +156,21 @@ func (c *ProxmoxClient) CreateVM(ctx context.Context, req VMCreateRequest) (int,
 	params.Set("cores", strconv.Itoa(req.CPUCores))
 	params.Set("memory", strconv.Itoa(req.MemoryMB))
 	params.Set("scsihw", "virtio-scsi-pci")
-	params.Set("scsi0", fmt.Sprintf("%s:%d,format=qcow2", storage, req.DiskGB))
+	// ZFS usa raw; dir/NFS usa qcow2; LVM não usa format
+	diskParam := fmt.Sprintf("%s:%d", storage, req.DiskGB)
+	if storage == "local-zfs" || req.Storage == "local-zfs" {
+		diskParam += ",format=raw"
+	}
+	params.Set("scsi0", diskParam)
 	params.Set("ostype", req.OSType)
 	params.Set("net0", network)
+	if req.Pool != "" {
+		params.Set("pool", req.Pool)
+	}
+	if len(req.Tags) > 0 {
+		// Proxmox usa ";" como separador de tags
+		params.Set("tags", strings.Join(req.Tags, ";"))
+	}
 	if req.ISO != "" {
 		params.Set("ide2", req.ISO+",media=cdrom")
 		params.Set("boot", "order=ide2;scsi0")
@@ -239,6 +280,24 @@ func (c *ProxmoxClient) ListVMs(ctx context.Context) ([]VMStatus, error) {
 		statuses[i] = VMStatus{VMID: e.VMID, Name: e.Name, Status: e.Status}
 	}
 	return statuses, nil
+}
+
+// GetTermProxy abre um terminal de texto para a VM via Proxmox termproxy.
+// Proxmox: POST /nodes/{node}/qemu/{vmid}/termproxy
+// Retorna ticket e porta para conexão WebSocket direta ao nó Proxmox.
+func (c *ProxmoxClient) GetTermProxy(ctx context.Context, vmid int) (TermProxyResponse, error) {
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/termproxy", c.node, vmid)
+	log.Printf("[proxmox] GetTermProxy → POST %s", path)
+	resp, err := c.doRequest(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return TermProxyResponse{}, fmt.Errorf("erro ao obter termproxy para VM %d: %w", vmid, err)
+	}
+	raw, err := decodeBody[pveTermProxy](resp)
+	if err != nil {
+		return TermProxyResponse{}, err
+	}
+	log.Printf("[proxmox] termproxy ticket prefix=%.10s len=%d", raw.Ticket, len(raw.Ticket))
+	return TermProxyResponse{Ticket: raw.Ticket, Port: int(raw.Port), UPID: raw.UPID}, nil
 }
 
 // GetTaskStatus consulta o estado de uma tarefa assíncrona pelo UPID.

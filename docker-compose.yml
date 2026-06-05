@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB:       ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout:  5s
+      retries:  10
+    networks:
+      - proxlab
+
+  backend:
+    build:
+      context:    ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      # Sobrescreve DB_HOST para o nome do serviço interno Docker
+      DB_HOST: postgres
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxlab
+
+  frontend:
+    build:
+      context:    ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - proxlab
+
+volumes:
+  postgres_data:
+
+networks:
+  proxlab:
+    driver: bridge

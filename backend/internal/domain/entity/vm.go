@@ -16,16 +16,18 @@ const (
 )
 
 type VM struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID      uuid.UUID `gorm:"type:uuid;not null;index"`
-	ProxmoxVMID int       `gorm:"not null"`
-	Name        string    `gorm:"not null"`
-	CPUCores    int       `gorm:"column:cpu_cores;not null"`
-	MemoryMB    int       `gorm:"column:memory_mb;not null"`
-	DiskGB      int       `gorm:"column:disk_gb;not null"`
-	OSTemplate  string    `gorm:"not null"`
-	Node        string    `gorm:"not null"`
-	Status      VMStatus  `gorm:"type:varchar(20);not null;default:'creating'"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey"          json:"id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null;index"       json:"user_id"`
+	ProxmoxVMID int       `gorm:"not null"                       json:"proxmox_vm_id"`
+	Name        string    `gorm:"not null"                       json:"name"`
+	CPUCores    int       `gorm:"column:cpu_cores;not null"      json:"cpu_cores"`
+	MemoryMB    int       `gorm:"column:memory_mb;not null"      json:"memory_mb"`
+	DiskGB      int       `gorm:"column:disk_gb;not null"        json:"disk_gb"`
+	OSTemplate  string    `gorm:"not null"                       json:"os_template"`
+	Node        string    `gorm:"not null"                       json:"node"`
+	Pool        string    `gorm:"default:''"                     json:"pool"`
+	Tags        string    `gorm:"default:''"                     json:"tags"` // separado por ";" igual ao Proxmox
+	Status      VMStatus  `gorm:"type:varchar(20);not null;default:'creating'" json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
