@@ -1,5 +1,11 @@
 package proxmox
 
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
+
 // VMCreateRequest contém os parâmetros para criar uma VM QEMU via
 // POST /nodes/{node}/qemu
 type VMCreateRequest struct {
@@ -84,9 +90,33 @@ type pveVNCProxy struct {
 }
 
 type pveTermProxy struct {
-	Ticket string `json:"ticket"`
-	Port   int    `json:"port"`
-	UPID   string `json:"upid"`
+	Ticket string      `json:"ticket"`
+	Port   flexInt     `json:"port"`
+	UPID   string      `json:"upid"`
+}
+
+// flexInt deserializa um campo JSON que pode chegar como número (5900)
+// ou como string ("5900") dependendo da versão do Proxmox.
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(data []byte) error {
+	// tenta número primeiro
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*f = flexInt(n)
+		return nil
+	}
+	// tenta string
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("flexInt: não é número nem string: %s", data)
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("flexInt: string não numérica: %q", s)
+	}
+	*f = flexInt(n)
+	return nil
 }
 
 type pveTaskStatus struct {

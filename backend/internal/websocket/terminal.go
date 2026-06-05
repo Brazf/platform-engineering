@@ -3,8 +3,10 @@ package websocket
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net/http"
-
+	"net/url"
+	"strings"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -14,7 +16,6 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		// TODO: restringir origens em produção
 		return true
 	},
 }
@@ -23,19 +24,33 @@ var upgrader = websocket.Upgrader{
 type TerminalHandler struct {
 	proxmoxClient repository.ProxmoxClientInterface
 	vmRepo        repository.VMRepository
-	nodeHost      string // hostname do nó Proxmox, para conexões WebSocket diretas
+	wsBase        string // wss://host:8006
+	node          string // ex: "pve01"
+	authHeader    string // PVEAPIToken=id=secret
 }
 
-func NewTerminalHandler(proxmoxClient repository.ProxmoxClientInterface, vmRepo repository.VMRepository, nodeHost string) *TerminalHandler {
+func NewTerminalHandler(
+	proxmoxClient repository.ProxmoxClientInterface,
+	vmRepo repository.VMRepository,
+	wsBase, node, authHeader string,
+) *TerminalHandler {
 	return &TerminalHandler{
 		proxmoxClient: proxmoxClient,
 		vmRepo:        vmRepo,
-		nodeHost:      nodeHost,
+		wsBase:        wsBase,
+		node:          node,
+		authHeader:    authHeader,
 	}
 }
 
-// HandleTerminal faz upgrade para WebSocket, obtém credenciais de termproxy do Proxmox
-// e faz proxy bidirecional entre o frontend e o terminal da VM.
+// HandleTerminal faz upgrade para WebSocket, obtém credenciais do termproxy Proxmox
+// e faz proxy bidirecional entre o frontend e o vncwebsocket do Proxmox.
+//
+// Fluxo:
+//  1. POST /nodes/{node}/qemu/{vmid}/termproxy → { ticket, port }
+//  2. Dial wss://proxmox:8006/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket?port={port}&vncticket={ticket}
+//     com Authorization: PVEAPIToken=... e Subprotocols: binary
+//  3. Proxy bidirecional direto — ticket já está nos query params, não enviar como mensagem
 //
 // GET /api/vms/:id/terminal?token=<jwt>
 func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
@@ -59,43 +74,86 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		return
 	}
 
-	// Faz upgrade da conexão antes de qualquer I/O de terminal
+	// Upgrade antes de qualquer I/O de terminal
 	clientConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}
 	defer clientConn.Close()
 
-	// Obtém credenciais de termproxy do Proxmox
+	// Passo 1: obtém ticket e porta via termproxy
 	termProxy, err := h.proxmoxClient.GetTermProxy(c.Request.Context(), vm.ProxmoxVMID)
 	if err != nil {
 		_ = clientConn.WriteMessage(websocket.TextMessage,
-			[]byte(fmt.Sprintf("\r\nErro ao conectar ao terminal: %v\r\n", err)))
+			[]byte(fmt.Sprintf("\r\nErro ao obter termproxy: %v\r\n", err)))
 		return
 	}
 
-	// Conecta ao WebSocket do termproxy diretamente no nó Proxmox.
-	// O subprotocolo "binary" é obrigatório para o Proxmox termproxy — sem ele o handshake falha.
-	proxmoxWSURL := fmt.Sprintf("wss://%s:%d/", h.nodeHost, termProxy.Port)
+	// Passo 2: conecta ao vncwebsocket do Proxmox passando port e ticket como query params.
+	// O ticket foi obtido via POST /termproxy e autentica esta conexão WS.
+	proxmoxWSURL := fmt.Sprintf(
+		"%s/api2/json/nodes/%s/qemu/%d/vncwebsocket?port=%d&vncticket=%s",
+		h.wsBase, h.node, vm.ProxmoxVMID,
+		termProxy.Port, url.QueryEscape(termProxy.Ticket),
+	)
+
+	reqHeader := http.Header{
+		"Authorization": []string{h.authHeader},
+	}
+
 	dialer := websocket.Dialer{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // rede interna
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // rede interna da faculdade
 		Subprotocols:    []string{"binary"},
 	}
-	proxmoxConn, _, err := dialer.Dial(proxmoxWSURL, nil)
+
+	safeURL := fmt.Sprintf(
+		"%s/api2/json/nodes/%s/qemu/%d/vncwebsocket?port=%d&vncticket=***",
+		h.wsBase, h.node, vm.ProxmoxVMID, termProxy.Port,
+	)
+	log.Printf("[terminal] dial proxmox → %s", safeURL)
+
+	proxmoxConn, httpResp, err := dialer.Dial(proxmoxWSURL, reqHeader)
 	if err != nil {
-		_ = clientConn.WriteMessage(websocket.TextMessage,
-			[]byte(fmt.Sprintf("\r\nErro ao conectar ao Proxmox: %v\r\n", err)))
+		msg := fmt.Sprintf("erro ao conectar ao Proxmox vncwebsocket: %v", err)
+		if httpResp != nil {
+			log.Printf("[terminal] dial falhou: status=%s url=%s err=%v", httpResp.Status, safeURL, err)
+			for k, v := range httpResp.Header {
+				log.Printf("[terminal]   header %s: %s", k, strings.Join(v, ", "))
+			}
+			msg = fmt.Sprintf("erro ao conectar ao Proxmox vncwebsocket (%s): %v", httpResp.Status, err)
+		} else {
+			log.Printf("[terminal] dial falhou (sem resposta HTTP): url=%s err=%v", safeURL, err)
+		}
+		_ = clientConn.WriteMessage(websocket.TextMessage, []byte("\r\n"+msg+"\r\n"))
 		return
 	}
 	defer proxmoxConn.Close()
 
-	// Autentica enviando o ticket como primeira mensagem
+	log.Printf("[terminal] conexão estabelecida com vncwebsocket vmid=%d", vm.ProxmoxVMID)
+	log.Printf("[terminal] ticket len=%d prefix=%.20s", len(termProxy.Ticket), termProxy.Ticket)
+
+	// Passo 3: envia ticket como primeira mensagem (TextMessage) — exigido pelo --vncticket-endpoint.
 	if err := proxmoxConn.WriteMessage(websocket.TextMessage, []byte(termProxy.Ticket+"\n")); err != nil {
-		_ = clientConn.WriteMessage(websocket.TextMessage, []byte("\r\nErro de autenticação com Proxmox\r\n"))
+		_ = clientConn.WriteMessage(websocket.TextMessage,
+			[]byte(fmt.Sprintf("\r\nErro ao enviar ticket: %v\r\n", err)))
 		return
 	}
 
-	// Proxy bidirecional: Proxmox → cliente e cliente → Proxmox
+	// Passo 4: aguarda confirmação "OK" do Proxmox.
+	_, ackMsg, err := proxmoxConn.ReadMessage()
+	if err != nil {
+		_ = clientConn.WriteMessage(websocket.TextMessage,
+			[]byte(fmt.Sprintf("\r\nErro ao aguardar confirmação do Proxmox: %v\r\n", err)))
+		return
+	}
+	if strings.TrimSpace(string(ackMsg)) != "OK" {
+		_ = clientConn.WriteMessage(websocket.TextMessage,
+			[]byte(fmt.Sprintf("\r\nProxmox rejeitou ticket: %q\r\n", string(ackMsg))))
+		return
+	}
+	log.Printf("[terminal] ticket aceito pelo Proxmox vmid=%d", vm.ProxmoxVMID)
+
+	// Proxy bidirecional
 	errc := make(chan error, 2)
 
 	go func() {

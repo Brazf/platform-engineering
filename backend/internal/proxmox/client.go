@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -33,10 +34,20 @@ type ProxmoxClient struct {
 	httpClient  *http.Client
 }
 
-// NodeHost retorna apenas o hostname do nó Proxmox (sem porta), usado para
-// conexões WebSocket diretas ao termproxy.
-func (c *ProxmoxClient) NodeHost() string {
-	return c.nodeHost
+// WsBase retorna a base URL do Proxmox com esquema WebSocket (wss://).
+// Usado pelo TerminalHandler para montar a URL do vncwebsocket.
+func (c *ProxmoxClient) WsBase() string {
+	return strings.Replace(c.baseURL, "https://", "wss://", 1)
+}
+
+// Node retorna o nome do nó configurado (ex: "pve01").
+func (c *ProxmoxClient) Node() string {
+	return c.node
+}
+
+// AuthHeader retorna o valor do header Authorization para o Proxmox API.
+func (c *ProxmoxClient) AuthHeader() string {
+	return fmt.Sprintf("PVEAPIToken=%s=%s", c.tokenID, c.tokenSecret)
 }
 
 // NewProxmoxClient cria um ProxmoxClient configurado a partir do Config da aplicação.
@@ -276,7 +287,8 @@ func (c *ProxmoxClient) ListVMs(ctx context.Context) ([]VMStatus, error) {
 // Retorna ticket e porta para conexão WebSocket direta ao nó Proxmox.
 func (c *ProxmoxClient) GetTermProxy(ctx context.Context, vmid int) (TermProxyResponse, error) {
 	path := fmt.Sprintf("/nodes/%s/qemu/%d/termproxy", c.node, vmid)
-	resp, err := c.doRequest(ctx, http.MethodPost, path, strings.NewReader(""))
+	log.Printf("[proxmox] GetTermProxy → POST %s", path)
+	resp, err := c.doRequest(ctx, http.MethodPost, path, nil)
 	if err != nil {
 		return TermProxyResponse{}, fmt.Errorf("erro ao obter termproxy para VM %d: %w", vmid, err)
 	}
@@ -284,7 +296,8 @@ func (c *ProxmoxClient) GetTermProxy(ctx context.Context, vmid int) (TermProxyRe
 	if err != nil {
 		return TermProxyResponse{}, err
 	}
-	return TermProxyResponse{Ticket: raw.Ticket, Port: raw.Port, UPID: raw.UPID}, nil
+	log.Printf("[proxmox] termproxy ticket prefix=%.10s len=%d", raw.Ticket, len(raw.Ticket))
+	return TermProxyResponse{Ticket: raw.Ticket, Port: int(raw.Port), UPID: raw.UPID}, nil
 }
 
 // GetTaskStatus consulta o estado de uma tarefa assíncrona pelo UPID.
