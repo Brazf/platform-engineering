@@ -130,28 +130,6 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 	defer proxmoxConn.Close()
 
 	log.Printf("[terminal] conexão estabelecida com vncwebsocket vmid=%d", vm.ProxmoxVMID)
-	log.Printf("[terminal] ticket len=%d prefix=%.20s", len(termProxy.Ticket), termProxy.Ticket)
-
-	// Passo 3: envia ticket como primeira mensagem (TextMessage) — exigido pelo --vncticket-endpoint.
-	if err := proxmoxConn.WriteMessage(websocket.TextMessage, []byte(termProxy.Ticket+"\n")); err != nil {
-		_ = clientConn.WriteMessage(websocket.TextMessage,
-			[]byte(fmt.Sprintf("\r\nErro ao enviar ticket: %v\r\n", err)))
-		return
-	}
-
-	// Passo 4: aguarda confirmação "OK" do Proxmox.
-	_, ackMsg, err := proxmoxConn.ReadMessage()
-	if err != nil {
-		_ = clientConn.WriteMessage(websocket.TextMessage,
-			[]byte(fmt.Sprintf("\r\nErro ao aguardar confirmação do Proxmox: %v\r\n", err)))
-		return
-	}
-	if strings.TrimSpace(string(ackMsg)) != "OK" {
-		_ = clientConn.WriteMessage(websocket.TextMessage,
-			[]byte(fmt.Sprintf("\r\nProxmox rejeitou ticket: %q\r\n", string(ackMsg))))
-		return
-	}
-	log.Printf("[terminal] ticket aceito pelo Proxmox vmid=%d", vm.ProxmoxVMID)
 
 	// Proxy bidirecional
 	errc := make(chan error, 2)
