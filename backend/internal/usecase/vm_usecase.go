@@ -35,6 +35,7 @@ type CreateVMRequest struct {
 	Pool       string   // "researchers" ou "students"
 	Tags       []string // ex: ["proxlab","aluno"]
 	Role       string   // role do usuário autenticado, para validar limites
+	RequireGPU bool
 }
 
 type VMUseCase struct {
@@ -58,13 +59,14 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 	}
 
 	vmid, _, err := uc.proxmoxClient.CreateVM(ctx, proxmox.VMCreateRequest{
-		Name:     req.Name,
-		CPUCores: req.CPUCores,
-		MemoryMB: req.MemoryMB,
-		DiskGB:   req.DiskGB,
-		OSType:   osTypeFromTemplate(req.OSTemplate),
-		Pool:     req.Pool,
-		Tags:     req.Tags,
+		Name:       req.Name,
+		CPUCores:   req.CPUCores,
+		MemoryMB:   req.MemoryMB,
+		DiskGB:     req.DiskGB,
+		OSType:     osTypeFromTemplate(req.OSTemplate),
+		Pool:       req.Pool,
+		Tags:       req.Tags,
+		RequireGPU: req.RequireGPU,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("erro ao criar VM no Proxmox: %w", err)
@@ -82,6 +84,7 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		Node:        node,
 		Pool:        req.Pool,
 		Tags:        strings.Join(req.Tags, ";"),
+		RequireGPU:  req.RequireGPU,
 		Status:      entity.VMStatusCreating,
 	}
 

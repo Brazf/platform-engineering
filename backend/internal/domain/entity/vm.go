@@ -27,6 +27,7 @@ type VM struct {
 	Node        string    `gorm:"not null"                       json:"node"`
 	Pool        string    `gorm:"default:''"                     json:"pool"`
 	Tags        string    `gorm:"default:''"                     json:"tags"` // separado por ";" igual ao Proxmox
+	RequireGPU  bool      `gorm:"default:false"                  json:"require_gpu"`
 	Status      VMStatus  `gorm:"type:varchar(20);not null;default:'creating'" json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

@@ -31,6 +31,7 @@ type Config struct {
 	ProxmoxNode        string
 	ProxmoxTokenID     string
 	ProxmoxTokenSecret string
+	ProxmoxGPUPCI      string // ex: "0000:01:00.0,pcie=1" — vazio desabilita passthrough
 
 	// Server
 	ServerPort string
@@ -58,6 +59,7 @@ func Load() (*Config, error) {
 		ProxmoxNode:        getEnv("PROXMOX_NODE", "pve"),
 		ProxmoxTokenID:     getEnv("PROXMOX_TOKEN_ID", ""),
 		ProxmoxTokenSecret: getEnv("PROXMOX_TOKEN_SECRET", ""),
+		ProxmoxGPUPCI:      getEnv("PROXMOX_GPU_PCI", ""),
 		ServerPort:         getEnv("SERVER_PORT", "8080"),
 	}
 

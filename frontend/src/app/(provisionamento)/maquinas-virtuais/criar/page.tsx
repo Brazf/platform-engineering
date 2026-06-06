@@ -48,6 +48,7 @@ export default function CriarMaquinaVirtualPage() {
   const [cpu, setCpu]             = useState(2);
   const [memoryMb, setMemoryMb]   = useState(2048);
   const [diskGb, setDiskGb]       = useState(20);
+  const [requireGpu, setRequireGpu] = useState(false);
   const [error, setError]         = useState("");
   const [loading, setLoading]     = useState(false);
 
@@ -69,6 +70,7 @@ export default function CriarMaquinaVirtualPage() {
         os_template: os,
         node: "pve01",
         pool,
+        require_gpu: requireGpu,
       });
       router.push("/maquinas-virtuais");
     } catch (err) {
@@ -134,8 +136,14 @@ export default function CriarMaquinaVirtualPage() {
 
           <p className="mt-6 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">REQUER GPU:</p>
           <div className="mt-3 flex gap-10 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">
-            <label className="flex items-center gap-2"><input type="radio" name="gpu" /> SIM</label>
-            <label className="flex items-center gap-2"><input type="radio" name="gpu" defaultChecked /> NÃO</label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="gpu" checked={requireGpu === true} onChange={() => setRequireGpu(true)} />
+              SIM
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="gpu" checked={requireGpu === false} onChange={() => setRequireGpu(false)} />
+              NÃO
+            </label>
           </div>
 
           <p className="mt-4 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DESCRIÇÃO DA MÁQUINA:</p>

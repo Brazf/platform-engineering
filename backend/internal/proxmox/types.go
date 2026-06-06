@@ -9,17 +9,18 @@ import (
 // VMCreateRequest contém os parâmetros para criar uma VM QEMU via
 // POST /nodes/{node}/qemu
 type VMCreateRequest struct {
-	VMID     int    // 0 = obter automaticamente via /cluster/nextid
-	Name     string
-	CPUCores int
-	MemoryMB int    // RAM em MB
-	DiskGB   int    // tamanho do disco raiz em GB
-	Storage  string // storage Proxmox, ex: "local-lvm". Default: "local-lvm"
-	OSType   string // "l26" Linux, "win10" Win 10, "win11" Win 11, "other"
-	ISO      string // caminho da ISO, ex: "local:iso/ubuntu-22.04.iso"
-	Network  string // config de rede. Default: "model=virtio,bridge=vmbr0"
-	Pool     string   // resource pool do Proxmox, ex: "researchers" ou "students"
-	Tags     []string // tags para identificar a VM no painel do Proxmox
+	VMID       int      // 0 = obter automaticamente via /cluster/nextid
+	Name       string
+	CPUCores   int
+	MemoryMB   int      // RAM em MB
+	DiskGB     int      // tamanho do disco raiz em GB
+	Storage    string   // storage Proxmox, ex: "local-lvm". Default: "local-lvm"
+	OSType     string   // "l26" Linux, "win10" Win 10, "win11" Win 11, "other"
+	ISO        string   // caminho da ISO, ex: "local:iso/ubuntu-22.04.iso"
+	Network    string   // config de rede. Default: "model=virtio,bridge=vmbr0"
+	Pool       string   // resource pool do Proxmox, ex: "researchers" ou "students"
+	Tags       []string // tags para identificar a VM no painel do Proxmox
+	RequireGPU bool     // se true e PROXMOX_GPU_PCI configurado, adiciona hostpci0
 }
 
 // VMStatus representa o estado de runtime de uma VM obtido via

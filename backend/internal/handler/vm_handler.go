@@ -27,8 +27,9 @@ type createVMRequest struct {
 	DiskGB     int      `json:"disk_gb"     binding:"required,min=4"`
 	OSTemplate string   `json:"os_template" binding:"required"`
 	Node       string   `json:"node"`
-	Pool       string   `json:"pool"`  // "researchers" ou "students"
-	Tags       []string `json:"tags"`  // ex: ["proxlab","aluno"]
+	Pool       string   `json:"pool"`
+	Tags       []string `json:"tags"`
+	RequireGPU bool     `json:"require_gpu"`
 }
 
 // Create godoc
@@ -59,6 +60,7 @@ func (h *VMHandler) Create(c *gin.Context) {
 		Pool:       req.Pool,
 		Tags:       req.Tags,
 		Role:       role,
+		RequireGPU: req.RequireGPU,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrLimitExceeded) {
