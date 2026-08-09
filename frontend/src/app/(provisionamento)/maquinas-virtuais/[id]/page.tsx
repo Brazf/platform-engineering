@@ -107,7 +107,7 @@ export default function MaquinaVirtualDetalhePage() {
               <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">QUANTIDADE DE NÚCLEOS (CPUS): {vm.cpu_cores}</p>
               <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">QUANTIDADE DE MEMÓRIA: {vm.memory_mb} MB</p>
               <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">QUANTIDADE DE ARMAZENAMENTO: {vm.disk_gb} GB</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">CONSOME GPU: NÃO</p>
+              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">CONSOME GPU: {vm.require_gpu ? "SIM" : "NÃO"}</p>
             </section>
 
             <section className="mt-5 h-[114px]">

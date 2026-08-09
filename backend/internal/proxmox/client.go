@@ -31,6 +31,7 @@ type ProxmoxClient struct {
 	nodeHost    string // hostname sem porta, para conexões WebSocket diretas
 	tokenID     string
 	tokenSecret string
+	gpuPCI      string // endereço PCI da GPU para passthrough, ex: "0000:01:00.0,pcie=1"
 	httpClient  *http.Client
 }
 
@@ -62,6 +63,7 @@ func NewProxmoxClient(cfg *config.Config) *ProxmoxClient {
 		nodeHost:    parseHostname(cfg.ProxmoxHost),
 		tokenID:     cfg.ProxmoxTokenID,
 		tokenSecret: cfg.ProxmoxTokenSecret,
+		gpuPCI:      cfg.ProxmoxGPUPCI,
 		httpClient:  &http.Client{Transport: transport},
 	}
 }
@@ -155,6 +157,7 @@ func (c *ProxmoxClient) CreateVM(ctx context.Context, req VMCreateRequest) (int,
 	params.Set("name", req.Name)
 	params.Set("cores", strconv.Itoa(req.CPUCores))
 	params.Set("memory", strconv.Itoa(req.MemoryMB))
+	params.Set("machine", "q35")
 	params.Set("scsihw", "virtio-scsi-pci")
 	// ZFS usa raw; dir/NFS usa qcow2; LVM não usa format
 	diskParam := fmt.Sprintf("%s:%d", storage, req.DiskGB)
@@ -174,6 +177,9 @@ func (c *ProxmoxClient) CreateVM(ctx context.Context, req VMCreateRequest) (int,
 	if req.ISO != "" {
 		params.Set("ide2", req.ISO+",media=cdrom")
 		params.Set("boot", "order=ide2;scsi0")
+	}
+	if req.RequireGPU && c.gpuPCI != "" {
+		params.Set("hostpci0", c.gpuPCI)
 	}
 
 	resp, err := c.doRequest(ctx, http.MethodPost, "/nodes/"+c.node+"/qemu", strings.NewReader(params.Encode()))

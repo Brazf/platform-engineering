@@ -83,6 +83,7 @@ export interface VM {
   node: string;
   pool: string;
   tags: string;
+  require_gpu: boolean;
   status: VMStatus;
   created_at: string;
   updated_at: string;
@@ -104,6 +105,7 @@ export async function apiCreateVM(data: {
   os_template: string;
   node: string;
   pool?: string;
+  require_gpu?: boolean;
 }): Promise<{ id: string; proxmox_vm_id: number; name: string; status: VMStatus; websocket_url: string }> {
   return request("/api/vms", { method: "POST", body: JSON.stringify(data) });
 }
