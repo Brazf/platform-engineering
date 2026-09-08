@@ -34,7 +34,7 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API REST            
 - TLS: `InsecureSkipVerify: true`
 - Node: `pve01`
 - Env: `PROXMOX_HOST`, `PROXMOX_NODE`, `PROXMOX_TOKEN_ID`, `PROXMOX_TOKEN_SECRET`
-- WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`
+- WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`; protocolo: 1ª mensagem `"<user>:<ticket>\n"` → resposta `OK`; entrada do teclado enquadrada `0:<len>:<dados>`, resize `1:cols:rows:`, ping `2` a cada 30s. Sem o handshake o Proxmox falha com `failed reading ticket: timed out`
 - Provisionamento: Terraform `bpg/proxmox ~> 0.112.0`; um workspace por VM em `$TERRAFORM_WORKDIR/<vm-uuid>`; credenciais só via env do processo (`PROXMOX_VE_ENDPOINT`, `PROXMOX_VE_API_TOKEN`, `PROXMOX_VE_INSECURE`)
 - Env Terraform: `TERRAFORM_BIN`, `TERRAFORM_WORKDIR`
 - VMs Ubuntu: clone completo do template cloud-init `PROXMOX_UBUNTU_TEMPLATE_VMID` (default 9000, `ubuntu-2404-cloud`); nascem ligadas, com usuário `ubuntu` e senha gerada por VM, devolvida uma única vez em `credentials` no `201` de `POST /api/vms` (não persistida). Outros SOs seguem o fluxo de VM vazia.
