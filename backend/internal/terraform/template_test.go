@@ -118,3 +118,40 @@ func TestRender_CustomStorageAndBridge(t *testing.T) {
 	assert.Contains(t, string(out), `datastore_id = "local-lvm"`)
 	assert.Contains(t, string(out), `bridge = "vmbr1"`)
 }
+
+func TestRender_CloneMode(t *testing.T) {
+	spec := baseSpec()
+	spec.CloneVMID = 9000
+	spec.CloudInitUser = "ubuntu"
+	spec.CloudInitPassword = `s3nh@"x`
+	spec.ISO = "local:iso/ignored.iso"
+	spec.Pool = "students"
+	out, err := terraform.Render(spec, "pve01", "")
+	require.NoError(t, err)
+	parseHCL(t, out)
+
+	s := string(out)
+	assert.Contains(t, s, "clone {")
+	assert.Contains(t, s, `vm_id = 9000`)
+	assert.Contains(t, s, `full  = true`)
+	assert.Contains(t, s, `started       = true`)
+	assert.Contains(t, s, `username = "ubuntu"`)
+	assert.Contains(t, s, `password = "s3nh@\"x"`)
+	assert.Contains(t, s, `address = "dhcp"`)
+	assert.Contains(t, s, `discard      = "on"`)
+	assert.Contains(t, s, "agent {")
+	assert.Contains(t, s, `pool_id       = "students"`)
+	assert.NotContains(t, s, "cdrom")
+	assert.NotContains(t, s, "operating_system")
+	assert.NotContains(t, s, "machine")
+	assert.NotContains(t, s, "scsi_hardware")
+}
+
+func TestRender_NoCloneHasNoInitialization(t *testing.T) {
+	out, err := terraform.Render(baseSpec(), "pve01", "")
+	require.NoError(t, err)
+	s := string(out)
+	assert.NotContains(t, s, "clone {")
+	assert.NotContains(t, s, "initialization")
+	assert.NotContains(t, s, "agent {")
+}

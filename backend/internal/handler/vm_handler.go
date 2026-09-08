@@ -35,6 +35,7 @@ type createVMRequest struct {
 // POST /api/vms
 // Body: { "name": "minha-vm", "cpu_cores": 2, "memory_mb": 2048, "disk_gb": 20, "os_template": "ubuntu-22.04" }
 // 201: { "id": "uuid", "proxmox_vm_id": 100, "name": "minha-vm", "status": "creating", "websocket_url": "/api/vms/uuid/terminal" }
+//      VMs Ubuntu (clonadas do template cloud-init) incluem "credentials": { "username", "password" } — retornado uma única vez.
 // 422: { "error": "limite de recursos excedido..." }
 func (h *VMHandler) Create(c *gin.Context) {
 	userID, ok := getUserID(c)
@@ -49,7 +50,7 @@ func (h *VMHandler) Create(c *gin.Context) {
 		return
 	}
 
-	vm, err := h.vmUC.CreateVM(c.Request.Context(), userID, usecase.CreateVMRequest{
+	result, err := h.vmUC.CreateVM(c.Request.Context(), userID, usecase.CreateVMRequest{
 		Name:       req.Name,
 		CPUCores:   req.CPUCores,
 		MemoryMB:   req.MemoryMB,
@@ -69,13 +70,21 @@ func (h *VMHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	vm := result.VM
+	resp := gin.H{
 		"id":            vm.ID,
 		"proxmox_vm_id": vm.ProxmoxVMID,
 		"name":          vm.Name,
 		"status":        vm.Status,
 		"websocket_url": "/api/vms/" + vm.ID.String() + "/terminal",
-	})
+	}
+	if result.Credentials != nil {
+		resp["credentials"] = gin.H{
+			"username": result.Credentials.Username,
+			"password": result.Credentials.Password,
+		}
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 // List godoc

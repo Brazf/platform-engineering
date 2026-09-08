@@ -24,6 +24,12 @@ type VMSpec struct {
 	Pool       string   // resource pool do Proxmox
 	Tags       []string
 	RequireGPU bool
+
+	// Modo clone: quando CloneVMID > 0 a VM é clonada de um template cloud-init
+	// (herda disco de sistema, BIOS e agent) e liga ao criar. ISO e OSType são ignorados.
+	CloneVMID         int
+	CloudInitUser     string
+	CloudInitPassword string
 }
 
 // Provisioner é o port para criação e destruição de VMs no Proxmox.

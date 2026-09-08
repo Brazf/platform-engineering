@@ -37,6 +37,7 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API REST            
 - WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`
 - Provisionamento: Terraform `bpg/proxmox ~> 0.112.0`; um workspace por VM em `$TERRAFORM_WORKDIR/<vm-uuid>`; credenciais só via env do processo (`PROXMOX_VE_ENDPOINT`, `PROXMOX_VE_API_TOKEN`, `PROXMOX_VE_INSECURE`)
 - Env Terraform: `TERRAFORM_BIN`, `TERRAFORM_WORKDIR`
+- VMs Ubuntu: clone completo do template cloud-init `PROXMOX_UBUNTU_TEMPLATE_VMID` (default 9000, `ubuntu-2404-cloud`); nascem ligadas, com usuário `ubuntu` e senha gerada por VM, devolvida uma única vez em `credentials` no `201` de `POST /api/vms` (não persistida). Outros SOs seguem o fluxo de VM vazia.
 - VMs criadas antes da migração não têm workspace: ao deletar, só o registro sai do banco; a VM é removida manualmente no Proxmox
 
 ## Autenticação

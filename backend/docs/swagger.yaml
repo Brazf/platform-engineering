@@ -448,6 +448,18 @@ components:
         websocket_url:
           type: string
           example: /api/vms/{id}/terminal
+        credentials:
+          type: object
+          description: >-
+            Presente apenas para VMs Ubuntu, clonadas do template cloud-init.
+            Credenciais de login geradas por VM e retornadas uma única vez — não são persistidas.
+          properties:
+            username:
+              type: string
+              example: ubuntu
+            password:
+              type: string
+              example: Qm9vdGVkQmVsbw
 
     VM:
       type: object

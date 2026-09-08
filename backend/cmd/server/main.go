@@ -40,7 +40,7 @@ func main() {
 	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
-	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode)
+	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID)
 
 	authH := handler.NewAuthHandler(authUC)
 	vmH := handler.NewVMHandler(vmUC)

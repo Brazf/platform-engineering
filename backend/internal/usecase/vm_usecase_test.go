@@ -83,7 +83,7 @@ func (m *mockProvisioner) Deprovision(ctx context.Context, workspaceID uuid.UUID
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 func newVMUC(vmRepo *mockVMRepo, px *mockProxmoxClient, prov *mockProvisioner) *usecase.VMUseCase {
-	return usecase.NewVMUseCase(vmRepo, px, prov, "pve01")
+	return usecase.NewVMUseCase(vmRepo, px, prov, "pve01", 9000)
 }
 
 func baseCreateReq() usecase.CreateVMRequest {
@@ -92,7 +92,7 @@ func baseCreateReq() usecase.CreateVMRequest {
 		CPUCores:   1,
 		MemoryMB:   1024,
 		DiskGB:     4,
-		OSTemplate: "ubuntu-22.04",
+		OSTemplate: "debian-11",
 		Pool:       "students",
 		Tags:       []string{"proxlab", "aluno"},
 		Role:       "aluno",
@@ -154,11 +154,12 @@ func TestCreateVM_PesquisadorWithinLimit(t *testing.T) {
 	req.Pool = "researchers"
 	req.Role = "pesquisador"
 
-	vm, err := uc.CreateVM(context.Background(), uuid.New(), req)
+	res, err := uc.CreateVM(context.Background(), uuid.New(), req)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, vm)
-	assert.Equal(t, 101, vm.ProxmoxVMID)
+	assert.NotNil(t, res)
+	assert.Equal(t, 101, res.VM.ProxmoxVMID)
+	assert.Nil(t, res.Credentials)
 	prov.AssertExpectations(t)
 	vmRepo.AssertExpectations(t)
 }
@@ -176,10 +177,10 @@ func TestCreateVM_WorkspaceIDMatchesEntityID(t *testing.T) {
 	vmRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.VM")).Return(nil)
 
 	uc := newVMUC(vmRepo, px, prov)
-	vm, err := uc.CreateVM(context.Background(), uuid.New(), baseCreateReq())
+	res, err := uc.CreateVM(context.Background(), uuid.New(), baseCreateReq())
 
 	assert.NoError(t, err)
-	assert.Equal(t, provisionedID, vm.ID)
+	assert.Equal(t, provisionedID, res.VM.ID)
 }
 
 // Cenário: role desconhecido → aplica limites de aluno por segurança.
@@ -349,4 +350,84 @@ func TestDeleteVM_AnotherUsersVM(t *testing.T) {
 
 	assert.ErrorIs(t, err, usecase.ErrAccessDenied)
 	prov.AssertNotCalled(t, "Deprovision")
+}
+
+// Cenário: template Ubuntu → clone do template cloud-init, credenciais geradas, VM nasce running.
+func TestCreateVM_UbuntuClonesTemplateWithCredentials(t *testing.T) {
+	vmRepo := new(mockVMRepo)
+	px := new(mockProxmoxClient)
+	prov := new(mockProvisioner)
+
+	var spec repository.VMSpec
+	prov.On("Provision", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { spec = args.Get(2).(repository.VMSpec) }).
+		Return(104, nil)
+	vmRepo.On("Create", mock.Anything, mock.MatchedBy(func(vm *entity.VM) bool {
+		return vm.Status == entity.VMStatusRunning
+	})).Return(nil)
+
+	uc := newVMUC(vmRepo, px, prov)
+	req := baseCreateReq()
+	req.OSTemplate = "ubuntu-22.04"
+
+	res, err := uc.CreateVM(context.Background(), uuid.New(), req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 9000, spec.CloneVMID)
+	assert.Equal(t, "ubuntu", spec.CloudInitUser)
+	assert.NotEmpty(t, spec.CloudInitPassword)
+	assert.NotNil(t, res.Credentials)
+	assert.Equal(t, "ubuntu", res.Credentials.Username)
+	assert.Equal(t, spec.CloudInitPassword, res.Credentials.Password)
+	assert.Len(t, res.Credentials.Password, 16)
+	vmRepo.AssertExpectations(t)
+}
+
+// Cenário: template não-Ubuntu → sem clone, sem credenciais, VM nasce creating.
+func TestCreateVM_NonUbuntuDoesNotClone(t *testing.T) {
+	vmRepo := new(mockVMRepo)
+	px := new(mockProxmoxClient)
+	prov := new(mockProvisioner)
+
+	var spec repository.VMSpec
+	prov.On("Provision", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { spec = args.Get(2).(repository.VMSpec) }).
+		Return(105, nil)
+	vmRepo.On("Create", mock.Anything, mock.MatchedBy(func(vm *entity.VM) bool {
+		return vm.Status == entity.VMStatusCreating
+	})).Return(nil)
+
+	uc := newVMUC(vmRepo, px, prov)
+	req := baseCreateReq()
+	req.OSTemplate = "windows-10"
+
+	res, err := uc.CreateVM(context.Background(), uuid.New(), req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, spec.CloneVMID)
+	assert.Empty(t, spec.CloudInitPassword)
+	assert.Nil(t, res.Credentials)
+}
+
+// Cenário: clone desabilitado (template VMID = 0) → Ubuntu segue o fluxo sem clone.
+func TestCreateVM_UbuntuWithCloneDisabled(t *testing.T) {
+	vmRepo := new(mockVMRepo)
+	px := new(mockProxmoxClient)
+	prov := new(mockProvisioner)
+
+	var spec repository.VMSpec
+	prov.On("Provision", mock.Anything, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) { spec = args.Get(2).(repository.VMSpec) }).
+		Return(106, nil)
+	vmRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
+
+	uc := usecase.NewVMUseCase(vmRepo, px, prov, "pve01", 0)
+	req := baseCreateReq()
+	req.OSTemplate = "ubuntu-22.04"
+
+	res, err := uc.CreateVM(context.Background(), uuid.New(), req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0, spec.CloneVMID)
+	assert.Nil(t, res.Credentials)
 }

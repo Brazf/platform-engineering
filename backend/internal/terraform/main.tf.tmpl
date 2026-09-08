@@ -13,14 +13,23 @@ provider "proxmox" {}
 resource "proxmox_virtual_environment_vm" "vm" {
   node_name     = "{{ hcl .Node }}"
   name          = "{{ hcl .Name }}"
-  machine       = "q35"
-  scsi_hardware = "virtio-scsi-pci"
-  started       = false
 {{- if .Pool }}
   pool_id       = "{{ hcl .Pool }}"
 {{- end }}
 {{- if .Tags }}
   tags          = [{{ range $i, $t := .Tags }}{{ if $i }}, {{ end }}"{{ hcl $t }}"{{ end }}]
+{{- end }}
+{{- if .CloneVMID }}
+  started       = true
+
+  clone {
+    vm_id = {{ .CloneVMID }}
+    full  = true
+  }
+{{- else }}
+  machine       = "q35"
+  scsi_hardware = "virtio-scsi-pci"
+  started       = false
 {{- end }}
 
   cpu {
@@ -36,17 +45,43 @@ resource "proxmox_virtual_environment_vm" "vm" {
     interface    = "scsi0"
     size         = {{ .DiskGB }}
     file_format  = "raw"
+{{- if .CloneVMID }}
+    discard      = "on"
+    iothread     = true
+{{- end }}
   }
 
   network_device {
     model  = "virtio"
     bridge = "{{ hcl .Bridge }}"
   }
+{{- if .CloneVMID }}
+
+  initialization {
+    datastore_id = "{{ hcl .Storage }}"
+
+    user_account {
+      username = "{{ hcl .CloudInitUser }}"
+      password = "{{ hcl .CloudInitPassword }}"
+    }
+
+    ip_config {
+      ipv4 {
+        address = "dhcp"
+      }
+    }
+  }
+
+  agent {
+    enabled = true
+  }
+{{- else }}
 
   operating_system {
     type = "{{ hcl .OSType }}"
   }
-{{- if .ISO }}
+{{- end }}
+{{- if and .ISO (not .CloneVMID) }}
 
   cdrom {
     file_id   = "{{ hcl .ISO }}"

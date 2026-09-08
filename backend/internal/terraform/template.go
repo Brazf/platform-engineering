@@ -36,6 +36,10 @@ type templateData struct {
 	Pool     string
 	Tags     []string
 	GPUPCI   string // vazio = sem passthrough
+
+	CloneVMID         int
+	CloudInitUser     string
+	CloudInitPassword string
 }
 
 // Render gera o main.tf para a spec. gpuPCI é o valor de PROXMOX_GPU_PCI
@@ -54,6 +58,10 @@ func Render(spec repository.VMSpec, node, gpuPCI string) ([]byte, error) {
 		Bridge:   spec.Bridge,
 		Pool:     spec.Pool,
 		Tags:     spec.Tags,
+
+		CloneVMID:         spec.CloneVMID,
+		CloudInitUser:     spec.CloudInitUser,
+		CloudInitPassword: spec.CloudInitPassword,
 	}
 	if data.Storage == "" {
 		data.Storage = defaultStorage

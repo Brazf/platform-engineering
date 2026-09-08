@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -37,11 +39,27 @@ type CreateVMRequest struct {
 	RequireGPU bool
 }
 
+// VMCredentials são as credenciais cloud-init geradas para VMs clonadas de template.
+// Não são persistidas: só existem na resposta da criação.
+type VMCredentials struct {
+	Username string
+	Password string
+}
+
+// CreateVMResult é o retorno de CreateVM. Credentials é nil quando a VM não foi clonada.
+type CreateVMResult struct {
+	VM          *entity.VM
+	Credentials *VMCredentials
+}
+
+const cloudInitUser = "ubuntu"
+
 type VMUseCase struct {
-	vmRepo        repository.VMRepository
-	proxmoxClient repository.ProxmoxClientInterface
-	provisioner   repository.Provisioner
-	node          string // nó Proxmox onde as VMs são criadas (PROXMOX_NODE)
+	vmRepo             repository.VMRepository
+	proxmoxClient      repository.ProxmoxClientInterface
+	provisioner        repository.Provisioner
+	node               string // nó Proxmox onde as VMs são criadas (PROXMOX_NODE)
+	ubuntuTemplateVMID int    // template cloud-init clonado para VMs Ubuntu; 0 desabilita clone
 }
 
 func NewVMUseCase(
@@ -49,19 +67,26 @@ func NewVMUseCase(
 	proxmoxClient repository.ProxmoxClientInterface,
 	provisioner repository.Provisioner,
 	node string,
+	ubuntuTemplateVMID int,
 ) *VMUseCase {
-	return &VMUseCase{vmRepo: vmRepo, proxmoxClient: proxmoxClient, provisioner: provisioner, node: node}
+	return &VMUseCase{
+		vmRepo:             vmRepo,
+		proxmoxClient:      proxmoxClient,
+		provisioner:        provisioner,
+		node:               node,
+		ubuntuTemplateVMID: ubuntuTemplateVMID,
+	}
 }
 
 // CreateVM valida limites por role, provisiona a VM via Terraform e persiste no banco.
 // O UUID da entidade é gerado antes do provisionamento e usado como ID do workspace.
-func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateVMRequest) (*entity.VM, error) {
+// VMs Ubuntu são clonadas do template cloud-init e já nascem ligadas, com credenciais geradas.
+func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateVMRequest) (*CreateVMResult, error) {
 	if err := validateRoleLimits(req.Role, req.CPUCores, req.MemoryMB); err != nil {
 		return nil, err
 	}
 
-	id := uuid.New()
-	vmid, err := uc.provisioner.Provision(ctx, id, repository.VMSpec{
+	spec := repository.VMSpec{
 		Name:       req.Name,
 		CPUCores:   req.CPUCores,
 		MemoryMB:   req.MemoryMB,
@@ -70,7 +95,24 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		Pool:       req.Pool,
 		Tags:       req.Tags,
 		RequireGPU: req.RequireGPU,
-	})
+	}
+
+	var creds *VMCredentials
+	status := entity.VMStatusCreating
+	if uc.ubuntuTemplateVMID > 0 && isUbuntu(req.OSTemplate) {
+		password, err := generatePassword()
+		if err != nil {
+			return nil, err
+		}
+		creds = &VMCredentials{Username: cloudInitUser, Password: password}
+		spec.CloneVMID = uc.ubuntuTemplateVMID
+		spec.CloudInitUser = creds.Username
+		spec.CloudInitPassword = creds.Password
+		status = entity.VMStatusRunning
+	}
+
+	id := uuid.New()
+	vmid, err := uc.provisioner.Provision(ctx, id, spec)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao provisionar VM: %w", err)
 	}
@@ -88,7 +130,7 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		Pool:        req.Pool,
 		Tags:        strings.Join(req.Tags, ";"),
 		RequireGPU:  req.RequireGPU,
-		Status:      entity.VMStatusCreating,
+		Status:      status,
 	}
 
 	if err := uc.vmRepo.Create(ctx, vm); err != nil {
@@ -99,7 +141,20 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		return nil, fmt.Errorf("erro ao salvar VM no banco: %w", err)
 	}
 
-	return vm, nil
+	return &CreateVMResult{VM: vm, Credentials: creds}, nil
+}
+
+func isUbuntu(template string) bool {
+	return strings.Contains(strings.ToLower(template), "ubuntu")
+}
+
+// generatePassword gera 16 caracteres URL-safe a partir de 12 bytes aleatórios.
+func generatePassword() (string, error) {
+	buf := make([]byte, 12)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("erro ao gerar senha: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 // ListUserVMs retorna todas as VMs do usuário.

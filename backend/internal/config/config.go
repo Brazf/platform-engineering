@@ -32,6 +32,7 @@ type Config struct {
 	ProxmoxTokenID     string
 	ProxmoxTokenSecret string
 	ProxmoxGPUPCI      string // ex: "0000:01:00.0,pcie=1" — vazio desabilita passthrough
+	ProxmoxUbuntuTemplateVMID int // VMID do template cloud-init Ubuntu clonado para VMs Ubuntu
 
 	// Terraform
 	TerraformBin     string // caminho do binário terraform. Default: "terraform" (resolve via PATH)
@@ -49,6 +50,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("JWT_EXPIRY_HOURS inválido: %w", err)
 	}
+	ubuntuTemplate, err := strconv.Atoi(getEnv("PROXMOX_UBUNTU_TEMPLATE_VMID", "9000"))
+	if err != nil {
+		return nil, fmt.Errorf("PROXMOX_UBUNTU_TEMPLATE_VMID inválido: %w", err)
+	}
 
 	cfg := &Config{
 		AppEnv:             getEnv("APP_ENV", "development"),
@@ -64,6 +69,7 @@ func Load() (*Config, error) {
 		ProxmoxTokenID:     getEnv("PROXMOX_TOKEN_ID", ""),
 		ProxmoxTokenSecret: getEnv("PROXMOX_TOKEN_SECRET", ""),
 		ProxmoxGPUPCI:      getEnv("PROXMOX_GPU_PCI", ""),
+		ProxmoxUbuntuTemplateVMID: ubuntuTemplate,
 		TerraformBin:       getEnv("TERRAFORM_BIN", "terraform"),
 		TerraformWorkdir:   getEnv("TERRAFORM_WORKDIR", "/var/lib/proxlab/terraform"),
 		ServerPort:         getEnv("SERVER_PORT", "8080"),
