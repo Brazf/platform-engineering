@@ -151,7 +151,7 @@ $TERRAFORM_WORKDIR/                 (default /var/lib/proxlab/terraform)
 
 - `NewVMUseCase(vmRepo, proxmoxClient, provisioner)`.
 - `CreateVM`: valida limites → `id := uuid.New()` → `provisioner.Provision(ctx, id, spec)` → persiste `entity.VM{ID: id, ProxmoxVMID: vmid, Status: creating, ...}`. Se `Provision` falhar, nada é persistido. Se `vmRepo.Create` falhar após provisionar, roda `Deprovision` best-effort para não deixar VM órfã no Proxmox.
-- `DeleteVM`: `provisioner.Deprovision(ctx, vm.ID)`; se `errors.Is(err, ErrWorkspaceNotFound)` → fallback `proxmoxClient.DeleteVM(ctx, vm.ProxmoxVMID)` (VMs criadas antes desta migração, sem tfstate). Depois `vmRepo.Delete`.
+- `DeleteVM`: `provisioner.Deprovision(ctx, vm.ID)`; se `errors.Is(err, ErrWorkspaceNotFound)` (VM criada antes desta migração, sem tfstate) → `log.Printf` de aviso com o VMID e segue; qualquer outro erro aborta. Depois `vmRepo.Delete`. VMs pré-migração ficam órfãs no Proxmox e são removidas manualmente pela interface — decisão explícita para não manter caminho REST de destruição.
 - Default de `node` continua vindo de `cfg.ProxmoxNode` (runner injeta no template); o campo `Node` de `CreateVMRequest` deixa de ser usado para escolher nó — o valor gravado na entidade passa a ser sempre `cfg.ProxmoxNode`. O use case recebe `node string` no construtor para isso.
 
 ## Configuração
@@ -178,8 +178,8 @@ O que sai, e por quê:
 | `ProxmoxClient.GetVNCProxy`, `VNCProxyResponse`, `pveVNCProxy` | remover | sem nenhum uso (terminal usa termproxy) |
 | `ProxmoxClient.ListVMs`, `pveQEMUEntry` | remover | usado só pela ferramenta de diagnóstico |
 | `ProxmoxClient.GetTaskStatus`, `TaskStatus`, `pveTaskStatus` | remover | usado só pela ferramenta de diagnóstico; UPIDs não são mais consumidos |
-| `ProxmoxClient.DeleteVM` | **manter** | fallback para VMs pré-migração sem tfstate |
-| `ProxmoxClientInterface` | reduzir a `GetVMStatus`, `StartVM`, `StopVM`, `DeleteVM`, `GetTermProxy` | reflete o uso real |
+| `ProxmoxClient.DeleteVM` | remover | destruição vai para Terraform; VMs pré-migração são apagadas manualmente |
+| `ProxmoxClientInterface` | reduzir a `GetVMStatus`, `StartVM`, `StopVM`, `GetTermProxy` | reflete o uso real |
 | `cmd/proxmox-check/main.go` | reescrever como smoke test do fluxo novo: `Provision` (TF) → `GetVMStatus` (REST) → `Deprovision` (TF) | valida a integração real; só toca em VM criada por ele mesmo |
 | `backend/proxmox-check` (binário compilado, rastreado no git) | `git rm` + adicionar `backend/proxmox-check` e `bin/` ao `.gitignore` | artefato de build não deve estar no repo |
 | Mocks em `vm_usecase_test.go` dos métodos removidos | remover | acompanham a interface |
@@ -191,7 +191,7 @@ O que sai, e por quê:
 
 - `internal/terraform/template_test.go` — golden tests de `Render` para: spec mínima; com ISO; com GPU; com pool+tags; nome com aspas (escape). Parse com `hashicorp/hcl/v2/hclparse` para garantir HCL válido.
 - `internal/terraform/runner_test.go` — testes que não precisam de Proxmox: `Deprovision` em workspace inexistente retorna `ErrWorkspaceNotFound`; `Provision` escreve `main.tf` no diretório certo antes de chamar o terraform (usando `TERRAFORM_BIN` apontando para um script fake que falha, verificando limpeza do diretório).
-- `internal/usecase/vm_usecase_test.go` — novo mock `mockProvisioner`; casos novos: `CreateVM` sucesso chama `Provision` e persiste com o VMID retornado; `Provision` falha → nada persistido; `vmRepo.Create` falha → `Deprovision` chamado; `DeleteVM` com workspace → só `Deprovision`; `DeleteVM` sem workspace → fallback `proxmoxClient.DeleteVM`. Casos de limite de role permanecem.
+- `internal/usecase/vm_usecase_test.go` — novo mock `mockProvisioner`; casos novos: `CreateVM` sucesso chama `Provision` e persiste com o VMID retornado; `Provision` falha → nada persistido; `vmRepo.Create` falha → `Deprovision` chamado; `DeleteVM` com workspace → `Deprovision` + `vmRepo.Delete`; `DeleteVM` sem workspace (`ErrWorkspaceNotFound`) → ainda remove do banco; `Deprovision` com outro erro → não remove do banco. Casos de limite de role permanecem.
 - Verificação manual contra o Proxmox real via `go run ./cmd/proxmox-check`, respeitando a regra: só criar/destruir VM criada pelo próprio teste.
 
 ## Documentação
