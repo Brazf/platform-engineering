@@ -62,6 +62,11 @@ func (m *mockProxmoxClient) StopVM(ctx context.Context, vmid int) (string, error
 	return args.String(0), args.Error(1)
 }
 
+func (m *mockProxmoxClient) RebootVM(ctx context.Context, vmid int) (string, error) {
+	args := m.Called(ctx, vmid)
+	return args.String(0), args.Error(1)
+}
+
 func (m *mockProxmoxClient) GetTermProxy(ctx context.Context, vmid int) (proxmox.TermProxyResponse, error) {
 	args := m.Called(ctx, vmid)
 	return args.Get(0).(proxmox.TermProxyResponse), args.Error(1)

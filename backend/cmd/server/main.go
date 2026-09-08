@@ -75,6 +75,7 @@ func main() {
 			vms.GET("/:id", vmH.Get)
 			vms.POST("/:id/start", vmH.Start)
 			vms.POST("/:id/stop", vmH.Stop)
+			vms.POST("/:id/reboot", vmH.Reboot)
 			vms.DELETE("/:id", vmH.Delete)
 			vms.GET("/:id/terminal", terminalH.HandleTerminal)
 		}

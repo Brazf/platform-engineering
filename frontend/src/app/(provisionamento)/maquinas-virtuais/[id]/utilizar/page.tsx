@@ -1,16 +1,44 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { InternalCompactHeader } from "@/components";
+import { apiRebootVM, apiStopVM } from "@/lib/api";
 import "@xterm/xterm/css/xterm.css";
 
 export default function UtilizarMaquinaVirtualPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params?.id as string;
   const terminalRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const [acting, setActing] = useState<"reboot" | "stop" | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  async function handleReboot() {
+    setActionError("");
+    setActing("reboot");
+    try {
+      await apiRebootVM(id);
+      // o console cai durante o reboot; recarregar reabre o WebSocket
+      window.location.reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Erro ao reiniciar a máquina.");
+      setActing(null);
+    }
+  }
+
+  async function handleStop() {
+    setActionError("");
+    setActing("stop");
+    try {
+      await apiStopVM(id);
+      router.push("/maquinas-virtuais");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Erro ao desligar a máquina.");
+      setActing(null);
+    }
+  }
 
   useEffect(() => {
     if (!terminalRef.current || !id) return;
@@ -154,19 +182,27 @@ export default function UtilizarMaquinaVirtualPage() {
           </section>
         </div>
 
+        {actionError && (
+          <p className="mt-3 text-center text-[12px] leading-none text-[#B21D38]">{actionError}</p>
+        )}
+
         <div className="flex h-[71px] items-center justify-center gap-2 py-4">
-          <Link
-            href={`/maquinas-virtuais/${id}`}
-            className="flex h-[39px] w-[214px] items-center justify-center rounded-[20px] border border-[#B21D38] text-[16.8px] leading-none font-semibold text-[#B21D38]"
+          <button
+            type="button"
+            onClick={handleReboot}
+            disabled={acting !== null}
+            className="flex h-[39px] w-[214px] items-center justify-center rounded-[20px] border border-[#B21D38] text-[16.8px] leading-none font-semibold text-[#B21D38] disabled:opacity-60"
           >
-            Reiniciar Máquina
-          </Link>
-          <Link
-            href="/maquinas-virtuais"
-            className="flex h-[39px] w-[213px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
+            {acting === "reboot" ? "..." : "Reiniciar Máquina"}
+          </button>
+          <button
+            type="button"
+            onClick={handleStop}
+            disabled={acting !== null}
+            className="flex h-[39px] w-[213px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white disabled:opacity-60"
           >
-            Desligar Máquina
-          </Link>
+            {acting === "stop" ? "..." : "Desligar Máquina"}
+          </button>
         </div>
       </main>
     </div>

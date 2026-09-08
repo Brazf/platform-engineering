@@ -130,6 +130,10 @@ export async function apiStopVM(id: string): Promise<void> {
   return request<void>(`/api/vms/${id}/stop`, { method: "POST" });
 }
 
+export async function apiRebootVM(id: string): Promise<void> {
+  return request<void>(`/api/vms/${id}/reboot`, { method: "POST" });
+}
+
 export async function apiDeleteVM(id: string): Promise<void> {
   return request<void>(`/api/vms/${id}`, { method: "DELETE" });
 }

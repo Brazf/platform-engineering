@@ -24,6 +24,11 @@ type ProxmoxClientInterface interface {
 	// Retorna o UPID da tarefa.
 	StopVM(ctx context.Context, vmid int) (taskID string, err error)
 
+	// RebootVM reinicia uma VM em execução (shutdown ACPI + start).
+	// Proxmox: POST /nodes/{node}/qemu/{vmid}/status/reboot
+	// Retorna o UPID da tarefa.
+	RebootVM(ctx context.Context, vmid int) (taskID string, err error)
+
 	// GetTermProxy abre um terminal de texto para a VM via Proxmox termproxy.
 	// Proxmox: POST /nodes/{node}/qemu/{vmid}/termproxy
 	// Retorna ticket e porta para conexão WebSocket direta ao nó Proxmox.

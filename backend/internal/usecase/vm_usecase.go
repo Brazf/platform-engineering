@@ -211,6 +211,18 @@ func (uc *VMUseCase) StopVM(ctx context.Context, userID, vmID uuid.UUID) error {
 	return uc.vmRepo.UpdateStatus(ctx, vm.ID, entity.VMStatusStopped)
 }
 
+// RebootVM reinicia a VM no Proxmox; o status no banco permanece running.
+func (uc *VMUseCase) RebootVM(ctx context.Context, userID, vmID uuid.UUID) error {
+	vm, err := uc.findOwned(ctx, userID, vmID)
+	if err != nil {
+		return err
+	}
+	if _, err := uc.proxmoxClient.RebootVM(ctx, vm.ProxmoxVMID); err != nil {
+		return fmt.Errorf("erro ao reiniciar VM no Proxmox: %w", err)
+	}
+	return uc.vmRepo.UpdateStatus(ctx, vm.ID, entity.VMStatusRunning)
+}
+
 // DeleteVM destrói a VM via Terraform e remove do banco.
 // VMs criadas antes da migração não têm workspace: o registro é removido e a VM
 // fica no Proxmox para remoção manual.

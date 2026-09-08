@@ -176,6 +176,29 @@ func (h *VMHandler) Stop(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "stopped"})
 }
 
+// Reboot godoc
+// POST /api/vms/:id/reboot
+// 200: { "status": "running" }
+func (h *VMHandler) Reboot(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		return
+	}
+
+	vmID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id de VM inválido"})
+		return
+	}
+
+	if err := h.vmUC.RebootVM(c.Request.Context(), userID, vmID); err != nil {
+		handleVMError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "running"})
+}
+
 // Delete godoc
 // DELETE /api/vms/:id
 // 204: no content

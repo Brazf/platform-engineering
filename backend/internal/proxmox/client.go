@@ -150,6 +150,18 @@ func (c *ProxmoxClient) StopVM(ctx context.Context, vmid int) (string, error) {
 	return decodeBody[string](resp)
 }
 
+// RebootVM reinicia uma VM em execução (shutdown ACPI seguido de start).
+// Proxmox: POST /nodes/{node}/qemu/{vmid}/status/reboot
+// Retorna o UPID da tarefa.
+func (c *ProxmoxClient) RebootVM(ctx context.Context, vmid int) (string, error) {
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/status/reboot", c.node, vmid)
+	resp, err := c.doRequest(ctx, http.MethodPost, path, strings.NewReader(""))
+	if err != nil {
+		return "", fmt.Errorf("erro ao reiniciar VM %d: %w", vmid, err)
+	}
+	return decodeBody[string](resp)
+}
+
 // GetTermProxy abre um terminal de texto para a VM via Proxmox termproxy.
 // Proxmox: POST /nodes/{node}/qemu/{vmid}/termproxy
 // Retorna ticket e porta para conexão WebSocket direta ao nó Proxmox.
