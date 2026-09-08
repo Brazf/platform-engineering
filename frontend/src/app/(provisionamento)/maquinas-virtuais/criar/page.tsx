@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InternalBreadcrumb, InternalHeader } from "@/components";
-import { apiCreateVM, getRole } from "@/lib/api";
+import { apiCreateVM, getRole, type VMCredentials } from "@/lib/api";
 
 // Componente visual decorativo mantido idêntico ao original.
 // O valor (current) foi tornado editável sem mudar posição ou estilo.
@@ -51,6 +51,18 @@ export default function CriarMaquinaVirtualPage() {
   const [requireGpu, setRequireGpu] = useState(false);
   const [error, setError]         = useState("");
   const [loading, setLoading]     = useState(false);
+  const [credentials, setCredentials] = useState<VMCredentials | null>(null);
+  const [copied, setCopied]       = useState<"username" | "password" | null>(null);
+
+  async function copiar(campo: "username" | "password", valor: string) {
+    try {
+      await navigator.clipboard.writeText(valor);
+      setCopied(campo);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // clipboard indisponível (http sem TLS, permissão negada) — usuário copia manualmente
+    }
+  }
 
   async function handleCriar() {
     setError("");
@@ -62,16 +74,20 @@ export default function CriarMaquinaVirtualPage() {
     try {
       const role = getRole() ?? "aluno";
       const pool = role === "pesquisador" ? "researchers" : "students";
-      await apiCreateVM({
+      const created = await apiCreateVM({
         name: name.trim(),
         cpu_cores: cpu,
         memory_mb: memoryMb,
         disk_gb: diskGb,
         os_template: os,
-        node: "pve01",
         pool,
         require_gpu: requireGpu,
       });
+      if (created.credentials) {
+        // senha só existe nesta resposta: mostrar antes de sair da tela
+        setCredentials(created.credentials);
+        return;
+      }
       router.push("/maquinas-virtuais");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao criar VM.");
@@ -165,6 +181,43 @@ export default function CriarMaquinaVirtualPage() {
           </button>
         </div>
       </main>
+
+      {credentials && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
+          <div className="w-[480px] bg-white px-6 pt-5 pb-6 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+            <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">MÁQUINA CRIADA</p>
+            <p className="mt-3 text-[12px] leading-[16px] text-[rgba(0,0,0,0.87)]">
+              Anote as credenciais de acesso. Por segurança, a senha é exibida <strong>apenas uma vez</strong> e não pode ser recuperada depois.
+            </p>
+
+            <p className="mt-4 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">USUÁRIO:</p>
+            <div className="mt-1 flex gap-2">
+              <input readOnly className="h-7 flex-1 border border-black bg-transparent px-2 font-mono text-[13px]" value={credentials.username} />
+              <button type="button" onClick={() => copiar("username", credentials.username)} className="h-7 w-[86px] border border-black text-[11.67px] font-bold tracking-[1.5px] uppercase">
+                {copied === "username" ? "Copiado" : "Copiar"}
+              </button>
+            </div>
+
+            <p className="mt-3 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">SENHA:</p>
+            <div className="mt-1 flex gap-2">
+              <input readOnly className="h-7 flex-1 border border-black bg-transparent px-2 font-mono text-[13px]" value={credentials.password} />
+              <button type="button" onClick={() => copiar("password", credentials.password)} className="h-7 w-[86px] border border-black text-[11.67px] font-bold tracking-[1.5px] uppercase">
+                {copied === "password" ? "Copiado" : "Copiar"}
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => router.push("/maquinas-virtuais")}
+                className="flex h-[39px] items-center justify-center rounded-[20px] bg-[#1351B4] px-6 text-[16.8px] leading-none font-semibold text-white"
+              >
+                Ir para minhas máquinas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

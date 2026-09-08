@@ -97,16 +97,28 @@ export async function apiGetVM(id: string): Promise<VM> {
   return request<VM>(`/api/vms/${id}`);
 }
 
+/** Credenciais cloud-init geradas para VMs Ubuntu. Retornadas uma única vez na criação. */
+export interface VMCredentials {
+  username: string;
+  password: string;
+}
+
 export async function apiCreateVM(data: {
   name: string;
   cpu_cores: number;
   memory_mb: number;
   disk_gb: number;
   os_template: string;
-  node: string;
   pool?: string;
   require_gpu?: boolean;
-}): Promise<{ id: string; proxmox_vm_id: number; name: string; status: VMStatus; websocket_url: string }> {
+}): Promise<{
+  id: string;
+  proxmox_vm_id: number;
+  name: string;
+  status: VMStatus;
+  websocket_url: string;
+  credentials?: VMCredentials;
+}> {
   return request("/api/vms", { method: "POST", body: JSON.stringify(data) });
 }
 
