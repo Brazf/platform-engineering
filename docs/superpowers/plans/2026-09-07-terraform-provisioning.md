@@ -18,7 +18,7 @@
 - Nunca escrever credenciais em arquivo: `PROXMOX_VE_*` vão como env do processo Terraform.
 - `TF_PLUGIN_CACHE_DIR = <TERRAFORM_WORKDIR>/.plugin-cache`.
 - Timeout de 5 minutos por operação Terraform.
-- Provider pinado em `~> 0.112.0`; `network_device` é **atributo** (lista de objetos), não bloco.
+- Provider pinado em `~> 0.112.0`; `network_device` usa sintaxe de **bloco** (a forma de atributo exige todos os campos).
 - Comentários e mensagens de erro em português, seguindo o código existente.
 - Rodar `cd backend && go build ./... && go vet ./... && go test ./...` antes de cada commit.
 - Nunca criar/operar VMs existentes no Proxmox durante testes; só a VM criada pelo próprio smoke test.

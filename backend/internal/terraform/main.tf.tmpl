@@ -38,10 +38,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
     file_format  = "raw"
   }
 
-  network_device = [{
+  network_device {
     model  = "virtio"
     bridge = "{{ hcl .Bridge }}"
-  }]
+  }
 
   operating_system {
     type = "{{ hcl .OSType }}"
