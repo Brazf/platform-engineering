@@ -167,22 +167,29 @@ GET    /api/images                     imagens do usuário no registry privado
 | Alunos rodando mineração/abuso | Quotas + NetworkPolicy + TTL opcional (container para após X horas para `aluno`) |
 | Operação do cluster após o TCC | k3s single-server + backups do etcd/sqlite; documentar runbook; começar com 1 worker |
 
-## Decisões já tomadas (2026-09-08)
+## Decisões tomadas (2026-09-08)
 
-- **Decisão 2 (DNS):** Ingress por subdomínio como padrão, **NodePort como fallback automático**, controlado por
-  config (`INGRESS_DOMAIN` vazio → NodePort). Não bloqueia o desenvolvimento. Em paralelo, o usuário vai pedir
-  ao TI do campus um wildcard `*.lab.cces.belojardim.ifpe.edu.br` apontando para o IP da VM do k3s (o DNS
-  `cces.belojardim.ifpe.edu.br` já existe — é o do `pve01`). Para testes locais sem DNS institucional, usar
-  `sslip.io`/`nip.io` (`app.10.0.0.50.sslip.io` resolve para `10.0.0.50`).
+| # | Decisão | Escolha |
+|---|---|---|
+| 1 | LXC antes ou k3s direto | **Direto ao k3s.** Fase 5 (LXC) descartada; "container" na plataforma = container de aplicação |
+| 2 | DNS / portas | **Ingress por subdomínio como padrão, NodePort como fallback automático** (`INGRESS_DOMAIN` vazio → NodePort). Usuário pedirá ao TI wildcard `*.lab.cces.belojardim.ifpe.edu.br`; testes locais com `sslip.io`/`nip.io` |
+| 3 | Registry privado | **`registry:2`** simples no cluster; Harbor fica como evolução |
+| 4 | Provisioner de containers | **`client-go` direto** (o cluster é o estado). Terraform continua sendo usado só para criar a VM do cluster |
+| 5 | Persistência | **Opcional na criação**: checkbox "volume persistente" + tamanho, limitado pela quota |
+| 6 | Quotas por perfil | **Iguais às VMs**: aluno 2 CPU / 4 GB / 5 containers / 20 GB; pesquisador 8 CPU / 16 GB / 20 containers / 100 GB (reusa `roleLimits`) |
+| 7 | Origens de imagem na v1 | **Catálogo curado + campo livre para registry público.** Dockerfile (kaniko) e tarball ficam para v2 |
+| 8 | Topologia do cluster | **1 VM single-node** (≈ 8 vCPU / 16 GB / 200 GB); workers depois se precisar |
+| 9 | Criação da VM do cluster | **Pelo próprio ProxLab via Terraform**: clone do template 9000 + cloud-init que instala k3s, registry e quotas base |
+| 10 | Escopo v1 | Criar/listar/detalhar/deletar + **terminal web (exec)**, **logs em tempo real**, **env e command** no formulário. Start/stop/restart ficam para v2 |
 
-## Decisões em aberto (para discutirmos)
+### Consequências para o desenho acima
 
-1. Fazer a Fase 5 (LXC) ou ir direto ao k3s?
-3. Registry: `registry:2` (simples) ou Harbor (UI, scan, RBAC) desde o começo?
-4. `Provisioner` de containers via Terraform (coerência) ou `client-go` (velocidade)? Proposta: começar com
-   Terraform, medir, trocar se necessário.
-5. Persistência: os containers de aluno têm disco persistente ou são efêmeros por padrão?
-6. Limites concretos por role (a tabela acima é chute inicial).
+- A seção "Modelo de Container" passa a usar `client-go` (não Terraform) — nova porta de domínio
+  `ContainerRuntime` em `internal/domain/repository`, implementada em `internal/kube/`.
+- O `Provisioner` Terraform existente ganha um segundo template (`k3s-node.tf.tmpl`) para a VM do cluster,
+  ou a VM é criada uma vez por um comando `cmd/k3s-bootstrap`. Definir no brainstorming da implementação.
+- Sem start/stop na v1, `status` do container vem direto do `Deployment`/`Pod` (`Running`, `Pending`,
+  `CrashLoopBackOff`…), sem coluna de status mutável no banco.
 
 ## Fora de escopo por enquanto
 
