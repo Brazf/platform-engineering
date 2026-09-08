@@ -1290,6 +1290,8 @@ func (uc *VMUseCase) DeleteVM(ctx context.Context, userID, vmID uuid.UUID) error
 
 Em `backend/internal/handler/vm_handler.go`: remover a linha `Node       string   \`json:"node"\`` do struct `createVMRequest` e a linha `Node:       req.Node,` da chamada a `CreateVM`. Atualizar o comentário godoc do `Create` para remover `"node": "pve"` do exemplo de body.
 
+Em `backend/docs/swagger.yaml`: remover a propriedade `node` (3 linhas: `node:`, `type: string`, `example: pve01`) do schema do **request** de criação (~linha 423). **Manter** a propriedade `node` do schema de **resposta** (~linha 476) — a entidade continua expondo o nó.
+
 - [ ] **Step 8: Ajuste mínimo em `main.go` para compilar**
 
 Em `backend/cmd/server/main.go`, trocar a linha `vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient)` por:
@@ -1313,7 +1315,7 @@ Expected: build sem erros; todos os testes PASS. `go vet` vai falhar em `cmd/pro
 - [ ] **Step 10: Commit**
 
 ```bash
-git add backend/internal backend/cmd/server/main.go
+git add backend/internal backend/cmd/server/main.go backend/docs/swagger.yaml
 git commit -m "feat(usecase): criar/destruir VM via Provisioner; remover caminho REST de criação e métodos sem uso"
 ```
 
@@ -1562,6 +1564,6 @@ git commit -m "docs: CLAUDE.md reflete provisionamento via Terraform"
 
 ## Self-review
 
-- **Cobertura do spec:** porta de domínio (T2), template + escape + GPU (T3), runner + timeout + env + cleanup (T4), use case + fallback de workspace ausente + rollback em falha de banco (T5), limpeza de legado incl. binário e `.gitignore` (T5, T6), Docker/compose/env (T1, T6), smoke test (T7), CLAUDE.md (T8). `swagger.yaml` inalterado — o campo `node` do payload passa a ser ignorado; se o swagger o documentar, remova a propriedade na T5 Step 7.
+- **Cobertura do spec:** porta de domínio (T2), template + escape + GPU (T3), runner + timeout + env + cleanup (T4), use case + fallback de workspace ausente + rollback em falha de banco (T5), limpeza de legado incl. binário e `.gitignore` (T5, T6), Docker/compose/env (T1, T6), smoke test (T7), CLAUDE.md (T8). `swagger.yaml`: campo `node` removido do request de criação na T5 Step 7; resposta inalterada.
 - **Tipos consistentes:** `Provision(ctx, uuid.UUID, repository.VMSpec) (int, error)`, `Deprovision(ctx, uuid.UUID) error`, `NewVMUseCase(vmRepo, proxmoxClient, provisioner, node)`, `Render(spec, node, gpuPCI)`, `NewRunner(cfg)` usados igual em todas as tasks.
 - **Sem placeholders.**
