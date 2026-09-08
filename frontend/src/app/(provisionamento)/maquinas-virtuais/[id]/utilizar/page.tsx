@@ -20,10 +20,10 @@ export default function UtilizarMaquinaVirtualPage() {
     setActing("reboot");
     try {
       await apiRebootVM(id);
-      // o console cai durante o reboot; recarregar reabre o WebSocket
-      window.location.reload();
+      // o console cai durante o reboot e o WebSocket reconecta sozinho
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao reiniciar a máquina.");
+    } finally {
       setActing(null);
     }
   }
@@ -46,6 +46,7 @@ export default function UtilizarMaquinaVirtualPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let term: any = null;
     let resizeHandler: (() => void) | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     // O cleanup pode rodar antes dos imports dinâmicos terminarem (React em dev
     // monta o efeito duas vezes); sem esta flag a primeira conexão vazava aberta.
     let cancelled = false;
@@ -88,35 +89,54 @@ export default function UtilizarMaquinaVirtualPage() {
         token ? `?token=${encodeURIComponent(token)}` : ""
       }`;
 
-      const ws = new WebSocket(wsURL);
-      wsRef.current = ws;
-      ws.binaryType = "arraybuffer";
+      // Reconecta automaticamente: em reboot/desligamento o QEMU encerra, o console
+      // serial cai e o WebSocket fecha; ao religar, a próxima tentativa volta a funcionar.
+      const MAX_RETRIES = 60;
+      let attempt = 0;
 
-      ws.onopen = () => {
-        term?.writeln("Conectando ao terminal da VM...");
-      };
+      function connect() {
+        if (cancelled) return;
+        const ws = new WebSocket(wsURL);
+        wsRef.current = ws;
+        ws.binaryType = "arraybuffer";
 
-      ws.onmessage = (evt: MessageEvent) => {
-        if (typeof evt.data === "string") {
-          term?.write(evt.data);
-        } else {
-          term?.write(new Uint8Array(evt.data as ArrayBuffer));
-        }
-      };
+        ws.onopen = () => {
+          attempt = 0;
+          term?.writeln("Conectando ao terminal da VM...");
+        };
 
-      ws.onclose = () => {
-        term?.writeln("\r\n\r\nConexão encerrada.");
-      };
+        ws.onmessage = (evt: MessageEvent) => {
+          if (typeof evt.data === "string") {
+            term?.write(evt.data);
+          } else {
+            term?.write(new Uint8Array(evt.data as ArrayBuffer));
+          }
+        };
 
-      ws.onerror = () => {
-        term?.writeln("\r\nErro na conexão WebSocket.");
-      };
+        ws.onclose = () => {
+          if (cancelled) return;
+          if (attempt >= MAX_RETRIES) {
+            term?.writeln("\r\n\r\nConexão encerrada.");
+            return;
+          }
+          attempt += 1;
+          term?.writeln(`\r\n\r\nConexão perdida. Reconectando (${attempt})...`);
+          reconnectTimer = setTimeout(connect, 3000);
+        };
+
+        ws.onerror = () => {
+          // onclose cuida da reconexão
+        };
+      }
 
       term.onData((data: string) => {
-        if (ws.readyState === WebSocket.OPEN) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(data);
         }
       });
+
+      connect();
 
       resizeHandler = () => fitAddon.fit();
       window.addEventListener("resize", resizeHandler);
@@ -126,6 +146,7 @@ export default function UtilizarMaquinaVirtualPage() {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       wsRef.current?.close();
       wsRef.current = null;
       term?.dispose();
