@@ -167,10 +167,17 @@ GET    /api/images                     imagens do usuário no registry privado
 | Alunos rodando mineração/abuso | Quotas + NetworkPolicy + TTL opcional (container para após X horas para `aluno`) |
 | Operação do cluster após o TCC | k3s single-server + backups do etcd/sqlite; documentar runbook; começar com 1 worker |
 
+## Decisões já tomadas (2026-09-08)
+
+- **Decisão 2 (DNS):** Ingress por subdomínio como padrão, **NodePort como fallback automático**, controlado por
+  config (`INGRESS_DOMAIN` vazio → NodePort). Não bloqueia o desenvolvimento. Em paralelo, o usuário vai pedir
+  ao TI do campus um wildcard `*.lab.cces.belojardim.ifpe.edu.br` apontando para o IP da VM do k3s (o DNS
+  `cces.belojardim.ifpe.edu.br` já existe — é o do `pve01`). Para testes locais sem DNS institucional, usar
+  `sslip.io`/`nip.io` (`app.10.0.0.50.sslip.io` resolve para `10.0.0.50`).
+
 ## Decisões em aberto (para discutirmos)
 
 1. Fazer a Fase 5 (LXC) ou ir direto ao k3s?
-2. Domínio e DNS wildcard: existe `*.algo.ifpe.edu.br` disponível? Quem administra?
 3. Registry: `registry:2` (simples) ou Harbor (UI, scan, RBAC) desde o começo?
 4. `Provisioner` de containers via Terraform (coerência) ou `client-go` (velocidade)? Proposta: começar com
    Terraform, medir, trocar se necessário.
@@ -181,3 +188,21 @@ GET    /api/images                     imagens do usuário no registry privado
 
 GPU em containers (device plugin NVIDIA — possível depois, reaproveitando o passthrough das VMs);
 containers Windows; multi-cluster.
+
+## Estado do projeto ao fim de 2026-09-08 (para retomar)
+
+Tudo em `dev`, commitado. Feito nesta rodada:
+
+- Provisionamento de VMs migrado para Terraform (`internal/terraform`, provider `bpg/proxmox ~> 0.112.0`), spec em
+  `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
+- VMs Ubuntu clonam o template cloud-init 9000, nascem ligadas, senha gerada por VM e exibida uma vez no front.
+- Terminal web funcionando: handshake do termproxy, reconexão automática, Enter até `login:`; botões
+  Reiniciar (`POST /api/vms/:id/reboot`) e Desligar funcionais.
+- Testado de ponta a ponta pelo usuário contra o Proxmox real (VM 102).
+
+Pendências pequenas: apagar branch `feat/terraform-provisioning`; `.env.example` está no `.gitignore`, então as
+envs novas (`TERRAFORM_BIN`, `TERRAFORM_WORKDIR`, `PROXMOX_UBUNTU_TEMPLATE_VMID`) precisam ser adicionadas à mão;
+Windows precisará de noVNC (sem console serial).
+
+**Próximo passo sugerido:** responder às decisões em aberto acima (principalmente a 1 — LXC antes ou k3s direto)
+e então rodar brainstorming → spec → plano da fase de containers, no mesmo fluxo usado para o Terraform.
