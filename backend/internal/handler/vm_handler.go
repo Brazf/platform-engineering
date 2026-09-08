@@ -26,7 +26,6 @@ type createVMRequest struct {
 	MemoryMB   int      `json:"memory_mb"   binding:"required,min=512"`
 	DiskGB     int      `json:"disk_gb"     binding:"required,min=4"`
 	OSTemplate string   `json:"os_template" binding:"required"`
-	Node       string   `json:"node"`
 	Pool       string   `json:"pool"`
 	Tags       []string `json:"tags"`
 	RequireGPU bool     `json:"require_gpu"`
@@ -34,7 +33,7 @@ type createVMRequest struct {
 
 // Create godoc
 // POST /api/vms
-// Body: { "name": "minha-vm", "cpu_cores": 2, "memory_mb": 2048, "disk_gb": 20, "os_template": "ubuntu-22.04", "node": "pve" }
+// Body: { "name": "minha-vm", "cpu_cores": 2, "memory_mb": 2048, "disk_gb": 20, "os_template": "ubuntu-22.04" }
 // 201: { "id": "uuid", "proxmox_vm_id": 100, "name": "minha-vm", "status": "creating", "websocket_url": "/api/vms/uuid/terminal" }
 // 422: { "error": "limite de recursos excedido..." }
 func (h *VMHandler) Create(c *gin.Context) {
@@ -56,7 +55,6 @@ func (h *VMHandler) Create(c *gin.Context) {
 		MemoryMB:   req.MemoryMB,
 		DiskGB:     req.DiskGB,
 		OSTemplate: req.OSTemplate,
-		Node:       req.Node,
 		Pool:       req.Pool,
 		Tags:       req.Tags,
 		Role:       role,

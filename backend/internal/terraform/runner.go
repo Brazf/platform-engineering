@@ -177,7 +177,7 @@ func (r *Runner) Deprovision(ctx context.Context, workspaceID uuid.UUID) error {
 type logWriter struct{ prefix string }
 
 func (w logWriter) Write(p []byte) (int, error) {
-	for _, line := range strings.Split(strings.TrimRight(string(p), "\n"), "\n") {
+	for line := range strings.SplitSeq(strings.TrimRight(string(p), "\n"), "\n") {
 		if line != "" {
 			log.Print(w.prefix + line)
 		}

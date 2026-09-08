@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/proxlab/backend/internal/domain/entity"
 	"github.com/proxlab/backend/internal/domain/repository"
-	"github.com/proxlab/backend/internal/proxmox"
 )
 
 var (
@@ -31,7 +31,6 @@ type CreateVMRequest struct {
 	MemoryMB   int
 	DiskGB     int
 	OSTemplate string
-	Node       string
 	Pool       string   // "researchers" ou "students"
 	Tags       []string // ex: ["proxlab","aluno"]
 	Role       string   // role do usuário autenticado, para validar limites
@@ -41,24 +40,28 @@ type CreateVMRequest struct {
 type VMUseCase struct {
 	vmRepo        repository.VMRepository
 	proxmoxClient repository.ProxmoxClientInterface
+	provisioner   repository.Provisioner
+	node          string // nó Proxmox onde as VMs são criadas (PROXMOX_NODE)
 }
 
-func NewVMUseCase(vmRepo repository.VMRepository, proxmoxClient repository.ProxmoxClientInterface) *VMUseCase {
-	return &VMUseCase{vmRepo: vmRepo, proxmoxClient: proxmoxClient}
+func NewVMUseCase(
+	vmRepo repository.VMRepository,
+	proxmoxClient repository.ProxmoxClientInterface,
+	provisioner repository.Provisioner,
+	node string,
+) *VMUseCase {
+	return &VMUseCase{vmRepo: vmRepo, proxmoxClient: proxmoxClient, provisioner: provisioner, node: node}
 }
 
-// CreateVM valida limites por role, cria a VM no Proxmox e persiste no banco.
+// CreateVM valida limites por role, provisiona a VM via Terraform e persiste no banco.
+// O UUID da entidade é gerado antes do provisionamento e usado como ID do workspace.
 func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateVMRequest) (*entity.VM, error) {
 	if err := validateRoleLimits(req.Role, req.CPUCores, req.MemoryMB); err != nil {
 		return nil, err
 	}
 
-	node := req.Node
-	if node == "" {
-		node = "pve"
-	}
-
-	vmid, _, err := uc.proxmoxClient.CreateVM(ctx, proxmox.VMCreateRequest{
+	id := uuid.New()
+	vmid, err := uc.provisioner.Provision(ctx, id, repository.VMSpec{
 		Name:       req.Name,
 		CPUCores:   req.CPUCores,
 		MemoryMB:   req.MemoryMB,
@@ -69,11 +72,11 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		RequireGPU: req.RequireGPU,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("erro ao criar VM no Proxmox: %w", err)
+		return nil, fmt.Errorf("erro ao provisionar VM: %w", err)
 	}
 
 	vm := &entity.VM{
-		ID:          uuid.New(),
+		ID:          id,
 		UserID:      userID,
 		ProxmoxVMID: vmid,
 		Name:        req.Name,
@@ -81,7 +84,7 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		MemoryMB:    req.MemoryMB,
 		DiskGB:      req.DiskGB,
 		OSTemplate:  req.OSTemplate,
-		Node:        node,
+		Node:        uc.node,
 		Pool:        req.Pool,
 		Tags:        strings.Join(req.Tags, ";"),
 		RequireGPU:  req.RequireGPU,
@@ -89,6 +92,10 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 	}
 
 	if err := uc.vmRepo.Create(ctx, vm); err != nil {
+		// VM já existe no Proxmox; desfaz para não deixar recurso órfão
+		if derr := uc.provisioner.Deprovision(ctx, id); derr != nil {
+			log.Printf("[vm] falha ao desprovisionar VM %d após erro no banco: %v", vmid, derr)
+		}
 		return nil, fmt.Errorf("erro ao salvar VM no banco: %w", err)
 	}
 
@@ -149,14 +156,19 @@ func (uc *VMUseCase) StopVM(ctx context.Context, userID, vmID uuid.UUID) error {
 	return uc.vmRepo.UpdateStatus(ctx, vm.ID, entity.VMStatusStopped)
 }
 
-// DeleteVM destrói a VM no Proxmox e remove do banco.
+// DeleteVM destrói a VM via Terraform e remove do banco.
+// VMs criadas antes da migração não têm workspace: o registro é removido e a VM
+// fica no Proxmox para remoção manual.
 func (uc *VMUseCase) DeleteVM(ctx context.Context, userID, vmID uuid.UUID) error {
 	vm, err := uc.findOwned(ctx, userID, vmID)
 	if err != nil {
 		return err
 	}
-	if err := uc.proxmoxClient.DeleteVM(ctx, vm.ProxmoxVMID); err != nil {
-		return fmt.Errorf("erro ao deletar VM no Proxmox: %w", err)
+	if err := uc.provisioner.Deprovision(ctx, vm.ID); err != nil {
+		if !errors.Is(err, repository.ErrWorkspaceNotFound) {
+			return fmt.Errorf("erro ao desprovisionar VM: %w", err)
+		}
+		log.Printf("[vm] VM %d (id=%s) sem workspace terraform; removendo só o registro — apagar manualmente no Proxmox", vm.ProxmoxVMID, vm.ID)
 	}
 	return uc.vmRepo.Delete(ctx, vm.ID)
 }

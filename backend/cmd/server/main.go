@@ -9,8 +9,11 @@ import (
 	"github.com/proxlab/backend/internal/middleware"
 	"github.com/proxlab/backend/internal/proxmox"
 	"github.com/proxlab/backend/internal/repository"
+	"github.com/proxlab/backend/internal/terraform"
 	"github.com/proxlab/backend/internal/usecase"
 	wshandler "github.com/proxlab/backend/internal/websocket"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -31,9 +34,13 @@ func main() {
 	vmRepo := repository.NewVMRepository(db)
 
 	proxmoxClient := proxmox.NewProxmoxClient(cfg)
+	provisioner, err := terraform.NewRunner(cfg)
+	if err != nil {
+		log.Fatalf("erro ao iniciar terraform runner: %v", err)
+	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
-	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient)
+	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode)
 
 	authH := handler.NewAuthHandler(authUC)
 	vmH := handler.NewVMHandler(vmUC)
@@ -47,6 +54,10 @@ func main() {
 	// 4. Roteamento
 	r := gin.Default()
 	r.Use(middleware.CORS())
+
+	// Documentação (Swagger UI servindo docs/swagger.yaml escrito à mão)
+	r.StaticFile("/docs/swagger.yaml", "./docs/swagger.yaml")
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/docs/swagger.yaml")))
 
 	public := r.Group("/api/auth")
 	{

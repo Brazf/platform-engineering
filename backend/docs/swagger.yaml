@@ -1,0 +1,490 @@
+openapi: 3.0.3
+info:
+  title: ProxLab API
+  description: >-
+    API para criação e gerenciamento de VMs no Proxmox VE via interface simplificada.
+    Usuários `aluno` (limites menores) e `pesquisador` (limites maiores).
+  version: "1.0"
+servers:
+  - url: /api
+tags:
+  - name: auth
+    description: Autenticação de usuários
+  - name: vms
+    description: Criação e gerenciamento de VMs no Proxmox
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Cadastrar novo usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Usuário criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: E-mail já está em uso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Perfil (role) inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Autenticar usuário e obter token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login efetuado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: E-mail ou senha inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vms:
+    post:
+      tags: [vms]
+      summary: Criar uma nova VM no Proxmox
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVMRequest"
+      responses:
+        "201":
+          description: VM criada (provisionamento iniciado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateVMResponse"
+        "400":
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Limite de recursos excedido para o perfil do usuário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [vms]
+      summary: Listar VMs do usuário autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de VMs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VM"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vms/{id}:
+    get:
+      tags: [vms]
+      summary: Obter detalhes de uma VM
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VMId"
+      responses:
+        "200":
+          description: Detalhes da VM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VM"
+        "400":
+          description: ID de VM inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Acesso negado (VM pertence a outro usuário)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: VM não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [vms]
+      summary: Remover uma VM
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VMId"
+      responses:
+        "204":
+          description: VM removida com sucesso
+        "400":
+          description: ID de VM inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Acesso negado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: VM não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vms/{id}/start:
+    post:
+      tags: [vms]
+      summary: Ligar uma VM
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VMId"
+      responses:
+        "200":
+          description: VM iniciada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: running
+        "400":
+          description: ID de VM inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Acesso negado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: VM não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vms/{id}/stop:
+    post:
+      tags: [vms]
+      summary: Desligar uma VM
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VMId"
+      responses:
+        "200":
+          description: VM parada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: stopped
+        "400":
+          description: ID de VM inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Acesso negado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: VM não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vms/{id}/terminal:
+    get:
+      tags: [vms]
+      summary: Abrir terminal web da VM (WebSocket)
+      description: >-
+        Endpoint de upgrade para WebSocket (proxy do termproxy do Proxmox).
+        Não é uma requisição HTTP comum — o token JWT deve ser enviado via
+        query param `?token=`. Documentado aqui apenas como referência.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VMId"
+      responses:
+        "101":
+          description: Switching Protocols — conexão WebSocket estabelecida
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Token JWT retornado por /auth/login. Enviar como
+        `Authorization: Bearer <token>`.
+
+  parameters:
+    VMId:
+      name: id
+      in: path
+      required: true
+      description: UUID da VM
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: mensagem de erro
+
+    RegisterRequest:
+      type: object
+      required: [email, password, role]
+      properties:
+        email:
+          type: string
+          format: email
+          example: joao@ifpe.edu.br
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: senha1234
+        role:
+          type: string
+          enum: [aluno, pesquisador]
+          example: aluno
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: joao@ifpe.edu.br
+        password:
+          type: string
+          format: password
+          example: senha1234
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [aluno, pesquisador]
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        user:
+          $ref: "#/components/schemas/UserResponse"
+
+    CreateVMRequest:
+      type: object
+      required: [name, cpu_cores, memory_mb, disk_gb, os_template]
+      properties:
+        name:
+          type: string
+          example: minha-vm
+        cpu_cores:
+          type: integer
+          minimum: 1
+          maximum: 16
+          example: 2
+        memory_mb:
+          type: integer
+          minimum: 512
+          example: 2048
+        disk_gb:
+          type: integer
+          minimum: 4
+          example: 20
+        os_template:
+          type: string
+          example: ubuntu-22.04
+        pool:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        require_gpu:
+          type: boolean
+          default: false
+
+    CreateVMResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        proxmox_vm_id:
+          type: integer
+          example: 100
+        name:
+          type: string
+          example: minha-vm
+        status:
+          type: string
+          example: creating
+        websocket_url:
+          type: string
+          example: /api/vms/{id}/terminal
+
+    VM:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        proxmox_vm_id:
+          type: integer
+        name:
+          type: string
+        cpu_cores:
+          type: integer
+        memory_mb:
+          type: integer
+        disk_gb:
+          type: integer
+        os_template:
+          type: string
+        node:
+          type: string
+        pool:
+          type: string
+        tags:
+          type: string
+          description: Tags separadas por ";" (formato do Proxmox)
+        require_gpu:
+          type: boolean
+        status:
+          type: string
+          enum: [creating, running, stopped, error]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
