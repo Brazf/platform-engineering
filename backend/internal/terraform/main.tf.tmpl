@@ -1,0 +1,69 @@
+terraform {
+  required_providers {
+    proxmox = {
+      source  = "bpg/proxmox"
+      version = "~> 0.112.0"
+    }
+  }
+}
+
+# Credenciais via env: PROXMOX_VE_ENDPOINT, PROXMOX_VE_API_TOKEN, PROXMOX_VE_INSECURE
+provider "proxmox" {}
+
+resource "proxmox_virtual_environment_vm" "vm" {
+  node_name     = "{{ hcl .Node }}"
+  name          = "{{ hcl .Name }}"
+  machine       = "q35"
+  scsi_hardware = "virtio-scsi-pci"
+  started       = false
+{{- if .Pool }}
+  pool_id       = "{{ hcl .Pool }}"
+{{- end }}
+{{- if .Tags }}
+  tags          = [{{ range $i, $t := .Tags }}{{ if $i }}, {{ end }}"{{ hcl $t }}"{{ end }}]
+{{- end }}
+
+  cpu {
+    cores = {{ .CPUCores }}
+  }
+
+  memory {
+    dedicated = {{ .MemoryMB }}
+  }
+
+  disk {
+    datastore_id = "{{ hcl .Storage }}"
+    interface    = "scsi0"
+    size         = {{ .DiskGB }}
+    file_format  = "raw"
+  }
+
+  network_device = [{
+    model  = "virtio"
+    bridge = "{{ hcl .Bridge }}"
+  }]
+
+  operating_system {
+    type = "{{ hcl .OSType }}"
+  }
+{{- if .ISO }}
+
+  cdrom {
+    file_id   = "{{ hcl .ISO }}"
+    interface = "ide2"
+  }
+  boot_order = ["ide2", "scsi0"]
+{{- end }}
+{{- if .GPUPCI }}
+
+  hostpci {
+    device = "hostpci0"
+    id     = "{{ hcl .GPUPCI }}"
+    pcie   = true
+  }
+{{- end }}
+}
+
+output "vmid" {
+  value = proxmox_virtual_environment_vm.vm.vm_id
+}
