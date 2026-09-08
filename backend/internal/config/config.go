@@ -33,6 +33,10 @@ type Config struct {
 	ProxmoxTokenSecret string
 	ProxmoxGPUPCI      string // ex: "0000:01:00.0,pcie=1" — vazio desabilita passthrough
 
+	// Terraform
+	TerraformBin     string // caminho do binário terraform. Default: "terraform" (resolve via PATH)
+	TerraformWorkdir string // raiz dos workspaces por VM
+
 	// Server
 	ServerPort string
 }
@@ -60,6 +64,8 @@ func Load() (*Config, error) {
 		ProxmoxTokenID:     getEnv("PROXMOX_TOKEN_ID", ""),
 		ProxmoxTokenSecret: getEnv("PROXMOX_TOKEN_SECRET", ""),
 		ProxmoxGPUPCI:      getEnv("PROXMOX_GPU_PCI", ""),
+		TerraformBin:       getEnv("TERRAFORM_BIN", "terraform"),
+		TerraformWorkdir:   getEnv("TERRAFORM_WORKDIR", "/var/lib/proxlab/terraform"),
 		ServerPort:         getEnv("SERVER_PORT", "8080"),
 	}
 
