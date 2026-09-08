@@ -140,6 +140,7 @@ func TestRender_CloneMode(t *testing.T) {
 	assert.Contains(t, s, `address = "dhcp"`)
 	assert.Contains(t, s, `discard      = "on"`)
 	assert.Contains(t, s, "agent {")
+	assert.Contains(t, s, "enabled = false")
 	assert.Contains(t, s, `pool_id       = "students"`)
 	assert.NotContains(t, s, "cdrom")
 	assert.NotContains(t, s, "operating_system")

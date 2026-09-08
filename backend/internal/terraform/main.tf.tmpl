@@ -72,8 +72,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
     }
   }
 
+  # Com agent habilitado e VM ligada, o provider bloqueia o apply até o
+  # qemu-guest-agent responder (15 min por padrão); a imagem cloud não o tem.
   agent {
-    enabled = true
+    enabled = false
   }
 {{- else }}
 
