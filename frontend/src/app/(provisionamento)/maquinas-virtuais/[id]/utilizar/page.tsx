@@ -20,7 +20,9 @@ export default function UtilizarMaquinaVirtualPage() {
     setActing("reboot");
     try {
       await apiRebootVM(id);
-      // o console cai durante o reboot e o WebSocket reconecta sozinho
+      // força a queda da sessão atual; o ciclo de reconexão reanexa ao console
+      // quando a VM voltar, mesmo se o Proxmox demorar a fechar o socket antigo
+      wsRef.current?.close();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao reiniciar a máquina.");
     } finally {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -134,12 +135,23 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 	}
 	defer proxmoxConn.Close()
 
+	// Escritas serializadas (gorilla/websocket permite um escritor por vez — aqui
+	// escrevem o teclado, o Enter automático e o ping) e com prazo: se o Proxmox
+	// derrubar o console sem fechar o TCP (ex.: reboot), a próxima escrita falha.
+	var writeMu sync.Mutex
+	writeProxmox := func(data []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_ = proxmoxConn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		return proxmoxConn.WriteMessage(websocket.BinaryMessage, data)
+	}
+
 	log.Printf("[terminal] conexão estabelecida com vncwebsocket vmid=%d", vm.ProxmoxVMID)
 
 	// Passo 3: handshake do termproxy — primeira mensagem é "<user>:<ticket>\n";
 	// o servidor responde "OK" e só então começa a repassar o console.
 	handshake := fmt.Sprintf("%s:%s\n", termProxy.User, termProxy.Ticket)
-	if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte(handshake)); err != nil {
+	if err := writeProxmox([]byte(handshake)); err != nil {
 		log.Printf("[terminal] falha ao enviar handshake: %v", err)
 		return
 	}
@@ -156,7 +168,7 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 	}
 
 	// Tamanho inicial do terminal; o front não envia resize.
-	_ = proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("1:80:24:"))
+	_ = writeProxmox([]byte("1:80:24:"))
 
 	// Proxy bidirecional. Proxmox → cliente: bytes crus.
 	// Cliente → Proxmox: enquadrado como "0:<tamanho>:<dados>", conforme protocolo do termproxy.
@@ -164,14 +176,23 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 	var promptReady atomic.Bool
 
 	go func() {
+		// O console serial fragmenta a saída em pedaços pequenos; "login:" pode
+		// vir dividido entre mensagens, então a busca usa uma janela dos últimos bytes.
+		var tail []byte
 		for {
 			mt, msg, err := proxmoxConn.ReadMessage()
 			if err != nil {
 				errc <- err
 				return
 			}
-			if bytes.Contains(msg, []byte("login:")) {
-				promptReady.Store(true)
+			if !promptReady.Load() {
+				tail = append(tail, msg...)
+				if len(tail) > 256 {
+					tail = tail[len(tail)-256:]
+				}
+				if bytes.Contains(tail, []byte("login:")) {
+					promptReady.Store(true)
+				}
 			}
 			if err := clientConn.WriteMessage(mt, msg); err != nil {
 				errc <- err
@@ -187,7 +208,7 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		poke := time.NewTicker(3 * time.Second)
 		defer poke.Stop()
 		for i := 0; i < 60 && !promptReady.Load(); i++ {
-			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("0:1:\r")); err != nil {
+			if err := writeProxmox([]byte("0:1:\r")); err != nil {
 				return
 			}
 			<-poke.C
@@ -203,7 +224,7 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 			}
 			promptReady.Store(true)
 			frame := fmt.Sprintf("0:%d:%s", len(msg), msg)
-			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte(frame)); err != nil {
+			if err := writeProxmox([]byte(frame)); err != nil {
 				errc <- err
 				return
 			}
@@ -218,7 +239,7 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		case <-errc:
 			return
 		case <-ping.C:
-			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("2")); err != nil {
+			if err := writeProxmox([]byte("2")); err != nil {
 				return
 			}
 		}
