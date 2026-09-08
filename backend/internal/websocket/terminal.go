@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -160,7 +161,7 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 	// Proxy bidirecional. Proxmox → cliente: bytes crus.
 	// Cliente → Proxmox: enquadrado como "0:<tamanho>:<dados>", conforme protocolo do termproxy.
 	errc := make(chan error, 2)
-	var gotOutput atomic.Bool
+	var promptReady atomic.Bool
 
 	go func() {
 		for {
@@ -169,7 +170,9 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 				errc <- err
 				return
 			}
-			gotOutput.Store(true)
+			if bytes.Contains(msg, []byte("login:")) {
+				promptReady.Store(true)
+			}
 			if err := clientConn.WriteMessage(mt, msg); err != nil {
 				errc <- err
 				return
@@ -177,12 +180,13 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		}
 	}()
 
-	// O getty do console serial só mostra o prompt de login ao receber Enter.
-	// Durante o boot ainda não há getty, então repete o Enter até a primeira saída.
+	// O getty do console serial só mostra o prompt de login ao receber Enter, e
+	// durante o boot ainda não existe getty (as mensagens do kernel chegam antes).
+	// Repete o Enter até ver "login:" ou até o usuário digitar algo.
 	go func() {
 		poke := time.NewTicker(3 * time.Second)
 		defer poke.Stop()
-		for i := 0; i < 60 && !gotOutput.Load(); i++ {
+		for i := 0; i < 60 && !promptReady.Load(); i++ {
 			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("0:1:\r")); err != nil {
 				return
 			}
@@ -197,6 +201,7 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 				errc <- err
 				return
 			}
+			promptReady.Store(true)
 			frame := fmt.Sprintf("0:%d:%s", len(msg), msg)
 			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte(frame)); err != nil {
 				errc <- err
