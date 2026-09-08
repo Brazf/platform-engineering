@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -155,12 +156,11 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 
 	// Tamanho inicial do terminal; o front não envia resize.
 	_ = proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("1:80:24:"))
-	// Enter inicial para o getty do console serial mostrar o prompt de login.
-	_ = proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("0:1:\r"))
 
 	// Proxy bidirecional. Proxmox → cliente: bytes crus.
 	// Cliente → Proxmox: enquadrado como "0:<tamanho>:<dados>", conforme protocolo do termproxy.
 	errc := make(chan error, 2)
+	var gotOutput atomic.Bool
 
 	go func() {
 		for {
@@ -169,10 +169,24 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 				errc <- err
 				return
 			}
+			gotOutput.Store(true)
 			if err := clientConn.WriteMessage(mt, msg); err != nil {
 				errc <- err
 				return
 			}
+		}
+	}()
+
+	// O getty do console serial só mostra o prompt de login ao receber Enter.
+	// Durante o boot ainda não há getty, então repete o Enter até a primeira saída.
+	go func() {
+		poke := time.NewTicker(3 * time.Second)
+		defer poke.Stop()
+		for i := 0; i < 60 && !gotOutput.Load(); i++ {
+			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("0:1:\r")); err != nil {
+				return
+			}
+			<-poke.C
 		}
 	}()
 

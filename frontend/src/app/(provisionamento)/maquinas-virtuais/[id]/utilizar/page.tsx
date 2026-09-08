@@ -46,12 +46,15 @@ export default function UtilizarMaquinaVirtualPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let term: any = null;
     let resizeHandler: (() => void) | null = null;
+    // O cleanup pode rodar antes dos imports dinâmicos terminarem (React em dev
+    // monta o efeito duas vezes); sem esta flag a primeira conexão vazava aberta.
+    let cancelled = false;
 
     async function init() {
       const { Terminal } = await import("@xterm/xterm");
       const { FitAddon } = await import("@xterm/addon-fit");
 
-      if (!terminalRef.current) return;
+      if (cancelled || !terminalRef.current) return;
 
       term = new Terminal({
         cursorBlink: true,
@@ -122,7 +125,9 @@ export default function UtilizarMaquinaVirtualPage() {
     init();
 
     return () => {
+      cancelled = true;
       wsRef.current?.close();
+      wsRef.current = null;
       term?.dispose();
       if (resizeHandler) window.removeEventListener("resize", resizeHandler);
     };
