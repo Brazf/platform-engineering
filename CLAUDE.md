@@ -18,14 +18,16 @@ backend/
 │   ├── handler/                # controllers HTTP (Gin)
 │   ├── repository/             # implementações GORM
 │   ├── middleware/             # JWT, CORS
-│   ├── proxmox/                # cliente API Proxmox
+│   ├── proxmox/                # cliente REST Proxmox (status/start/stop/termproxy)
+│   ├── terraform/              # Provisioner: gera main.tf e roda terraform-exec
 │   └── websocket/              # proxy terminal VMs
 └── migrations/
 ```
 
 ## Fluxo obrigatório
 Handler → UseCase → Repository Interface → GORM → PostgreSQL
-Handler → UseCase → ProxmoxClient Interface → Proxmox API
+Handler → UseCase → Provisioner Interface → terraform-exec (provider bpg/proxmox) → Proxmox   (criar/destruir VM)
+Handler → UseCase → ProxmoxClient Interface → Proxmox API REST                                (status/start/stop/terminal)
 
 ## Proxmox
 - Auth: API Token via header `Authorization: PVEAPIToken=<id>=<secret>`
@@ -33,6 +35,9 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API
 - Node: `pve01`
 - Env: `PROXMOX_HOST`, `PROXMOX_NODE`, `PROXMOX_TOKEN_ID`, `PROXMOX_TOKEN_SECRET`
 - WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`
+- Provisionamento: Terraform `bpg/proxmox ~> 0.112.0`; um workspace por VM em `$TERRAFORM_WORKDIR/<vm-uuid>`; credenciais só via env do processo (`PROXMOX_VE_ENDPOINT`, `PROXMOX_VE_API_TOKEN`, `PROXMOX_VE_INSECURE`)
+- Env Terraform: `TERRAFORM_BIN`, `TERRAFORM_WORKDIR`
+- VMs criadas antes da migração não têm workspace: ao deletar, só o registro sai do banco; a VM é removida manualmente no Proxmox
 
 ## Autenticação
 - JWT salvo no localStorage com chave `"token"`
@@ -50,3 +55,7 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API
 3. Terminal web (xterm.js + WebSocket) ← ✅ concluído
 4. Integração frontend ↔ backend (VMs) ← **atual**
 5. Containers LXC (futura)
+6. Migração do provisionamento para Terraform ← ✅ concluído
+
+## Pendências
+- [x] **Migrar provisionamento de recursos para Terraform**: o backend deixou de criar/destruir VMs via API REST do Proxmox e passou a gerar/aplicar configuração Terraform (`internal/terraform/`, provider `bpg/proxmox`). Spec: `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
