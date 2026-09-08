@@ -23,6 +23,8 @@ services:
     environment:
       # Sobrescreve DB_HOST para o nome do serviço interno Docker
       DB_HOST: postgres
+    volumes:
+      - terraform_data:/var/lib/proxlab/terraform
     ports:
       - "8080:8080"
     depends_on:
@@ -44,6 +46,7 @@ services:
 
 volumes:
   postgres_data:
+  terraform_data:
 
 networks:
   proxlab:

@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# binários Go
+bin/
+backend/proxmox-check
+backend/server
