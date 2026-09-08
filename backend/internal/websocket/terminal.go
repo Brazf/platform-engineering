@@ -142,14 +142,21 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		return
 	}
 	_, ack, err := proxmoxConn.ReadMessage()
-	if err != nil || strings.TrimSpace(string(ack)) != "OK" {
-		log.Printf("[terminal] handshake rejeitado pelo termproxy: err=%v resp=%q", err, ack)
+	if err != nil || !strings.HasPrefix(string(ack), "OK") {
+		log.Printf("[terminal] handshake rejeitado pelo termproxy vmid=%d: err=%v resp=%q", vm.ProxmoxVMID, err, ack)
 		_ = clientConn.WriteMessage(websocket.TextMessage, []byte("\r\nErro de autenticação no console da VM.\r\n"))
 		return
+	}
+	log.Printf("[terminal] handshake OK vmid=%d", vm.ProxmoxVMID)
+	// Dados do console podem vir colados ao "OK" no mesmo frame.
+	if rest := ack[2:]; len(rest) > 0 {
+		_ = clientConn.WriteMessage(websocket.BinaryMessage, rest)
 	}
 
 	// Tamanho inicial do terminal; o front não envia resize.
 	_ = proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("1:80:24:"))
+	// Enter inicial para o getty do console serial mostrar o prompt de login.
+	_ = proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("0:1:\r"))
 
 	// Proxy bidirecional. Proxmox → cliente: bytes crus.
 	// Cliente → Proxmox: enquadrado como "0:<tamanho>:<dados>", conforme protocolo do termproxy.
