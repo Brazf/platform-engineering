@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -50,7 +52,8 @@ func NewTerminalHandler(
 //  1. POST /nodes/{node}/qemu/{vmid}/termproxy → { ticket, port }
 //  2. Dial wss://proxmox:8006/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket?port={port}&vncticket={ticket}
 //     com Authorization: PVEAPIToken=... e Subprotocols: binary
-//  3. Proxy bidirecional direto — ticket já está nos query params, não enviar como mensagem
+//  3. Handshake: envia "<user>:<ticket>\n" e espera "OK" (o termproxy exige isso além dos query params)
+//  4. Proxy bidirecional — entrada do cliente enquadrada como "0:<len>:<dados>"; ping "2" a cada 30s
 //
 // GET /api/vms/:id/terminal?token=<jwt>
 func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
@@ -131,7 +134,25 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 
 	log.Printf("[terminal] conexão estabelecida com vncwebsocket vmid=%d", vm.ProxmoxVMID)
 
-	// Proxy bidirecional
+	// Passo 3: handshake do termproxy — primeira mensagem é "<user>:<ticket>\n";
+	// o servidor responde "OK" e só então começa a repassar o console.
+	handshake := fmt.Sprintf("%s:%s\n", termProxy.User, termProxy.Ticket)
+	if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte(handshake)); err != nil {
+		log.Printf("[terminal] falha ao enviar handshake: %v", err)
+		return
+	}
+	_, ack, err := proxmoxConn.ReadMessage()
+	if err != nil || strings.TrimSpace(string(ack)) != "OK" {
+		log.Printf("[terminal] handshake rejeitado pelo termproxy: err=%v resp=%q", err, ack)
+		_ = clientConn.WriteMessage(websocket.TextMessage, []byte("\r\nErro de autenticação no console da VM.\r\n"))
+		return
+	}
+
+	// Tamanho inicial do terminal; o front não envia resize.
+	_ = proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("1:80:24:"))
+
+	// Proxy bidirecional. Proxmox → cliente: bytes crus.
+	// Cliente → Proxmox: enquadrado como "0:<tamanho>:<dados>", conforme protocolo do termproxy.
 	errc := make(chan error, 2)
 
 	go func() {
@@ -150,17 +171,30 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 
 	go func() {
 		for {
-			mt, msg, err := clientConn.ReadMessage()
+			_, msg, err := clientConn.ReadMessage()
 			if err != nil {
 				errc <- err
 				return
 			}
-			if err := proxmoxConn.WriteMessage(mt, msg); err != nil {
+			frame := fmt.Sprintf("0:%d:%s", len(msg), msg)
+			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte(frame)); err != nil {
 				errc <- err
 				return
 			}
 		}
 	}()
 
-	<-errc
+	// Ping periódico ("2") mantém a sessão do termproxy viva, como faz o cliente oficial.
+	ping := time.NewTicker(30 * time.Second)
+	defer ping.Stop()
+	for {
+		select {
+		case <-errc:
+			return
+		case <-ping.C:
+			if err := proxmoxConn.WriteMessage(websocket.BinaryMessage, []byte("2")); err != nil {
+				return
+			}
+		}
+	}
 }

@@ -25,6 +25,7 @@ type TermProxyResponse struct {
 	Ticket string // ticket de autenticação temporário
 	Port   int    // porta do WebSocket de terminal no nó Proxmox
 	UPID   string // UPID da tarefa
+	User   string // usuário dono do ticket; enviado no handshake "<user>:<ticket>\n"
 }
 
 // --- Tipos privados para decodificação do JSON da API do Proxmox ---
@@ -48,6 +49,7 @@ type pveTermProxy struct {
 	Ticket string  `json:"ticket"`
 	Port   flexInt `json:"port"`
 	UPID   string  `json:"upid"`
+	User   string  `json:"user"`
 }
 
 // flexInt deserializa um campo JSON que pode chegar como número (5900)

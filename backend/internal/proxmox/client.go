@@ -165,5 +165,5 @@ func (c *ProxmoxClient) GetTermProxy(ctx context.Context, vmid int) (TermProxyRe
 		return TermProxyResponse{}, err
 	}
 	log.Printf("[proxmox] termproxy ticket prefix=%.10s len=%d", raw.Ticket, len(raw.Ticket))
-	return TermProxyResponse{Ticket: raw.Ticket, Port: int(raw.Port), UPID: raw.UPID}, nil
+	return TermProxyResponse{Ticket: raw.Ticket, Port: int(raw.Port), UPID: raw.UPID, User: raw.User}, nil
 }
