@@ -12,6 +12,8 @@ tags:
     description: Autenticação de usuários
   - name: vms
     description: Criação e gerenciamento de VMs no Proxmox
+  - name: containers
+    description: Containers de aplicação no cluster k3s
 
 paths:
   /auth/register:
@@ -360,6 +362,166 @@ paths:
         "101":
           description: Switching Protocols — conexão WebSocket estabelecida
 
+  /containers/catalog:
+    get:
+      tags: [containers]
+      summary: Catálogo de imagens curadas
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de imagens do catálogo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogImage"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /containers:
+    post:
+      tags: [containers]
+      summary: Criar um container no cluster k3s
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContainerRequest"
+      responses:
+        "201":
+          description: Container criado (pod iniciando)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Container"
+        "400":
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Já existe um container com esse nome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Dados inválidos ou limite de recursos excedido para o perfil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Cluster de containers indisponível
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags: [containers]
+      summary: Listar containers do usuário autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de containers com status vindo do cluster
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Container"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /containers/{id}:
+    get:
+      tags: [containers]
+      summary: Obter detalhes de um container
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ContainerId"
+      responses:
+        "200":
+          description: Detalhes do container
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Container"
+        "400":
+          description: ID de container inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Container não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [containers]
+      summary: Remover um container
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ContainerId"
+      responses:
+        "204":
+          description: Container removido do cluster e do banco
+        "400":
+          description: ID de container inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Container não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Cluster de containers indisponível
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -376,6 +538,14 @@ components:
       in: path
       required: true
       description: UUID da VM
+      schema:
+        type: string
+        format: uuid
+    ContainerId:
+      name: id
+      in: path
+      required: true
+      description: UUID do container
       schema:
         type: string
         format: uuid
@@ -538,6 +708,141 @@ components:
         status:
           type: string
           enum: [creating, running, stopped, error]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CatalogImage:
+      type: object
+      properties:
+        key:
+          type: string
+          example: postgres
+        label:
+          type: string
+          example: PostgreSQL 16
+        image:
+          type: string
+          example: postgres:16
+        port:
+          type: integer
+          description: Porta padrão da imagem; 0 = não expõe (só terminal)
+        protocol:
+          type: string
+          enum: [http, tcp]
+        mount_path:
+          type: string
+          example: /var/lib/postgresql/data
+        command:
+          type: string
+        required_env:
+          type: array
+          items:
+            type: string
+
+    CreateContainerRequest:
+      type: object
+      required: [name, image, cpu_millis, memory_mb]
+      properties:
+        name:
+          type: string
+          description: "1–40 caracteres: minúsculas, dígitos e hífen, sem hífen nas pontas"
+          example: meu-pg
+        description:
+          type: string
+        image:
+          type: string
+          example: postgres:16
+        cpu_millis:
+          type: integer
+          minimum: 100
+          example: 500
+        memory_mb:
+          type: integer
+          minimum: 64
+          example: 512
+        port:
+          type: integer
+          minimum: 0
+          maximum: 65535
+          description: 0 = não expor
+        protocol:
+          type: string
+          enum: [http, tcp]
+          default: http
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        command:
+          type: string
+          description: Executado via /bin/sh -c
+        persistent_gb:
+          type: integer
+          minimum: 0
+        mount_path:
+          type: string
+          description: Caminho absoluto do volume persistente. Default /data
+
+    ContainerStatus:
+      type: object
+      properties:
+        phase:
+          type: string
+          enum: [pending, running, failed, unknown]
+        message:
+          type: string
+
+    Container:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        image:
+          type: string
+        cpu_millis:
+          type: integer
+        memory_mb:
+          type: integer
+        port:
+          type: integer
+        protocol:
+          type: string
+          enum: [http, tcp]
+        node_port:
+          type: integer
+          description: Porta externa (30000–32767) quando exposto por NodePort; 0 caso contrário
+        env:
+          type: object
+          additionalProperties:
+            type: string
+        command:
+          type: string
+        persistent_gb:
+          type: integer
+        mount_path:
+          type: string
+        namespace:
+          type: string
+        status:
+          $ref: "#/components/schemas/ContainerStatus"
+        external_url:
+          type: string
+          description: "URL/host:porta de acesso externo; vazio se não exposto"
+        internal_address:
+          type: string
+          description: "<name>:<port> dentro do namespace do usuário"
         created_at:
           type: string
           format: date-time

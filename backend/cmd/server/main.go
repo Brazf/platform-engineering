@@ -5,7 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/proxlab/backend/internal/config"
+	domainrepo "github.com/proxlab/backend/internal/domain/repository"
 	"github.com/proxlab/backend/internal/handler"
+	"github.com/proxlab/backend/internal/kube"
 	"github.com/proxlab/backend/internal/middleware"
 	"github.com/proxlab/backend/internal/proxmox"
 	"github.com/proxlab/backend/internal/repository"
@@ -32,18 +34,27 @@ func main() {
 	// 3. Dependências (repositórios → use cases → handlers)
 	userRepo := repository.NewUserRepository(db)
 	vmRepo := repository.NewVMRepository(db)
+	containerRepo := repository.NewContainerRepository(db)
 
 	proxmoxClient := proxmox.NewProxmoxClient(cfg)
 	provisioner, err := terraform.NewRunner(cfg)
 	if err != nil {
 		log.Fatalf("erro ao iniciar terraform runner: %v", err)
 	}
+	var containerRuntime domainrepo.ContainerRuntime
+	if rt, err := kube.New(cfg.KubeconfigPath); err != nil {
+		log.Printf("[kube] cluster de containers indisponível (%v); rotas de containers responderão 503", err)
+	} else {
+		containerRuntime = rt
+	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
 	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID)
+	containerUC := usecase.NewContainerUseCase(containerRepo, containerRuntime, cfg.IngressDomain, cfg.K3SNodeHost())
 
 	authH := handler.NewAuthHandler(authUC)
 	vmH := handler.NewVMHandler(vmUC)
+	containerH := handler.NewContainerHandler(containerUC)
 	terminalH := wshandler.NewTerminalHandler(
 		proxmoxClient, vmRepo,
 		proxmoxClient.WsBase(),
@@ -78,6 +89,14 @@ func main() {
 			vms.POST("/:id/reboot", vmH.Reboot)
 			vms.DELETE("/:id", vmH.Delete)
 			vms.GET("/:id/terminal", terminalH.HandleTerminal)
+		}
+		containers := protected.Group("/containers")
+		{
+			containers.GET("/catalog", containerH.Catalog)
+			containers.POST("", containerH.Create)
+			containers.GET("", containerH.List)
+			containers.GET("/:id", containerH.Get)
+			containers.DELETE("/:id", containerH.Delete)
 		}
 	}
 

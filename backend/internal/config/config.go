@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/proxlab/backend/internal/domain/entity"
@@ -132,6 +133,12 @@ func (c *Config) ConnectDatabase() (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+// K3SNodeHost devolve o IP sem o prefixo CIDR ("10.0.0.50/24" → "10.0.0.50").
+func (c *Config) K3SNodeHost() string {
+	host, _, _ := strings.Cut(c.K3SNodeIP, "/")
+	return host
 }
 
 func (c *Config) DSN() string {
