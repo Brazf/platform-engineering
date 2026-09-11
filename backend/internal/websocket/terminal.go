@@ -16,14 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/proxlab/backend/internal/domain/repository"
-	"github.com/proxlab/backend/internal/middleware"
 )
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
 
 // TerminalHandler gerencia conexões WebSocket de terminal para VMs.
 type TerminalHandler struct {
@@ -66,10 +59,8 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		return
 	}
 
-	rawUserID, _ := c.Get(middleware.ContextKeyUserID)
-	userIDStr, _ := rawUserID.(string)
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
+	userID, ok := userFromContext(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}

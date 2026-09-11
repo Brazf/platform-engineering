@@ -55,6 +55,8 @@ func main() {
 	authH := handler.NewAuthHandler(authUC)
 	vmH := handler.NewVMHandler(vmUC)
 	containerH := handler.NewContainerHandler(containerUC)
+	containerTermH := wshandler.NewContainerTerminalHandler(containerUC, containerRuntime)
+	containerLogsH := wshandler.NewContainerLogsHandler(containerUC, containerRuntime)
 	terminalH := wshandler.NewTerminalHandler(
 		proxmoxClient, vmRepo,
 		proxmoxClient.WsBase(),
@@ -97,6 +99,8 @@ func main() {
 			containers.GET("", containerH.List)
 			containers.GET("/:id", containerH.Get)
 			containers.DELETE("/:id", containerH.Delete)
+			containers.GET("/:id/terminal", containerTermH.Handle)
+			containers.GET("/:id/logs", containerLogsH.Handle)
 		}
 	}
 
