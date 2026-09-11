@@ -100,6 +100,7 @@ func Load() (*Config, error) {
 		TerraformWorkdir:          tfWorkdir,
 		K3SNodeIP:                 getEnv("K3S_NODE_IP", ""),
 		K3SNodeGateway:            getEnv("K3S_NODE_GATEWAY", ""),
+		K3SNodePool:               getEnv("K3S_NODE_POOL", "researchers"),
 		K3SNodeCPU:                k3sCPU,
 		K3SNodeMemoryMB:           k3sMem,
 		K3SNodeDiskGB:             k3sDisk,

@@ -85,6 +85,16 @@ func (r *Runner) newTF(dir string) (*tfexec.Terraform, error) {
 		return nil, fmt.Errorf("erro ao configurar ambiente do terraform: %w", err)
 	}
 	tf.SetStderr(logWriter{prefix: "[terraform] "})
+	// Diagnóstico: TERRAFORM_LOG_PATH grava o log DEBUG (inclui as requisições
+	// HTTP do provider) num arquivo. Não afeta a saída normal.
+	if p := os.Getenv("TERRAFORM_LOG_PATH"); p != "" {
+		if err := tf.SetLog("DEBUG"); err != nil {
+			return nil, fmt.Errorf("erro ao configurar log do terraform: %w", err)
+		}
+		if err := tf.SetLogPath(p); err != nil {
+			return nil, fmt.Errorf("erro ao configurar caminho do log do terraform: %w", err)
+		}
+	}
 	return tf, nil
 }
 
