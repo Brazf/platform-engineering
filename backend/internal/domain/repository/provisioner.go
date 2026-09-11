@@ -30,6 +30,9 @@ type VMSpec struct {
 	CloneVMID         int
 	CloudInitUser     string
 	CloudInitPassword string
+	CloudInitSSHKeys  []string // chaves públicas autorizadas para CloudInitUser
+	StaticIP          string   // CIDR, ex: "10.0.0.50/24". Vazio → DHCP
+	Gateway           string   // obrigatório quando StaticIP != ""
 }
 
 // Provisioner é o port para criação e destruição de VMs no Proxmox.

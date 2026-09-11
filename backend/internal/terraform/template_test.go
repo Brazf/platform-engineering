@@ -156,3 +156,36 @@ func TestRender_NoCloneHasNoInitialization(t *testing.T) {
 	assert.NotContains(t, s, "initialization")
 	assert.NotContains(t, s, "agent {")
 }
+
+func TestRender_CloneWithSSHKeyAndStaticIP(t *testing.T) {
+	spec := baseSpec()
+	spec.CloneVMID = 9000
+	spec.CloudInitUser = "ubuntu"
+	spec.CloudInitSSHKeys = []string{"ssh-ed25519 AAAAC3 k3s"}
+	spec.StaticIP = "10.0.0.50/24"
+	spec.Gateway = "10.0.0.1"
+	out, err := terraform.Render(spec, "pve01", "")
+	require.NoError(t, err)
+	parseHCL(t, out)
+
+	s := string(out)
+	assert.Contains(t, s, `keys     = ["ssh-ed25519 AAAAC3 k3s"]`)
+	assert.Contains(t, s, `address = "10.0.0.50/24"`)
+	assert.Contains(t, s, `gateway = "10.0.0.1"`)
+	assert.NotContains(t, s, `address = "dhcp"`)
+	assert.NotContains(t, s, "password")
+}
+
+func TestRender_CloneDefaultsToDHCPAndPassword(t *testing.T) {
+	spec := baseSpec()
+	spec.CloneVMID = 9000
+	spec.CloudInitUser = "ubuntu"
+	spec.CloudInitPassword = "s3cret"
+	out, err := terraform.Render(spec, "pve01", "")
+	require.NoError(t, err)
+	s := string(out)
+	assert.Contains(t, s, `address = "dhcp"`)
+	assert.Contains(t, s, `password = "s3cret"`)
+	assert.NotContains(t, s, "keys")
+	assert.NotContains(t, s, "gateway")
+}

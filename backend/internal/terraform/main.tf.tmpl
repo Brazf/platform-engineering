@@ -62,12 +62,22 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
     user_account {
       username = "{{ hcl .CloudInitUser }}"
+{{- if .CloudInitPassword }}
       password = "{{ hcl .CloudInitPassword }}"
+{{- end }}
+{{- if .CloudInitSSHKeys }}
+      keys     = [{{ range $i, $k := .CloudInitSSHKeys }}{{ if $i }}, {{ end }}"{{ hcl $k }}"{{ end }}]
+{{- end }}
     }
 
     ip_config {
       ipv4 {
+{{- if .StaticIP }}
+        address = "{{ hcl .StaticIP }}"
+        gateway = "{{ hcl .Gateway }}"
+{{- else }}
         address = "dhcp"
+{{- end }}
       }
     }
   }
