@@ -10,6 +10,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /k3s-bootstrap ./cmd/k3s-bootstrap
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM hashicorp/terraform:1.9 AS terraform
@@ -25,6 +26,7 @@ WORKDIR /app
 
 COPY --from=terraform /bin/terraform /usr/local/bin/terraform
 COPY --from=builder /app /app/server
+COPY --from=builder /k3s-bootstrap /app/k3s-bootstrap
 
 USER appuser
 
