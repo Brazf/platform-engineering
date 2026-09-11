@@ -19,7 +19,7 @@ type Runtime struct {
 	restConfig *rest.Config // nil nos testes; exigido por Exec
 }
 
-// A asserção de interface entra quando Exec/Logs existirem (Task 8).
+var _ repository.ContainerRuntime = (*Runtime)(nil)
 
 // New carrega o kubeconfig. Arquivo ausente → repository.ErrRuntimeUnavailable
 // (o servidor sobe mesmo assim; rotas de containers respondem 503).
