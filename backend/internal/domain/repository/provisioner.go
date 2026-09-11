@@ -17,11 +17,11 @@ type VMSpec struct {
 	CPUCores   int
 	MemoryMB   int
 	DiskGB     int
-	Storage    string   // storage Proxmox. Vazio → "local-zfs"
-	OSType     string   // "l26" | "win10" | "win11" | "other"
-	ISO        string   // ex: "local:iso/ubuntu-22.04.iso"; vazio = sem cdrom
-	Bridge     string   // bridge de rede. Vazio → "vmbr0"
-	Pool       string   // resource pool do Proxmox
+	Storage    string // storage Proxmox. Vazio → "local-zfs"
+	OSType     string // "l26" | "win10" | "win11" | "other"
+	ISO        string // ex: "local:iso/ubuntu-22.04.iso"; vazio = sem cdrom
+	Bridge     string // bridge de rede. Vazio → "vmbr0"
+	Pool       string // resource pool do Proxmox
 	Tags       []string
 	RequireGPU bool
 

@@ -122,8 +122,12 @@ func (c *Config) ConnectDatabase() (*gorm.DB, error) {
 	}
 
 	if c.AppEnv == "development" {
-		if err := db.AutoMigrate(&entity.User{}, &entity.VM{}); err != nil {
+		if err := db.AutoMigrate(&entity.User{}, &entity.VM{}, &entity.Container{}); err != nil {
 			return nil, fmt.Errorf("erro no auto-migrate: %w", err)
+		}
+		// GORM não gera índice parcial via tag.
+		if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_containers_node_port ON containers(node_port) WHERE node_port > 0`).Error; err != nil {
+			return nil, fmt.Errorf("erro ao criar índice de node_port: %w", err)
 		}
 	}
 
