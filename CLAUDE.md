@@ -67,4 +67,6 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 
 ## Pendências
 - [x] **Migrar provisionamento de recursos para Terraform**: o backend deixou de criar/destruir VMs via API REST do Proxmox e passou a gerar/aplicar configuração Terraform (`internal/terraform/`, provider `bpg/proxmox`). Spec: `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
-- [ ] **Fase containers (k3s)**: brainstorming → spec → plano. VM do cluster nasce por um comando de bootstrap (`cmd/k3s-bootstrap`), executado uma vez; containers gerenciados via `client-go` (`internal/kube/`).
+- [x] **Fase containers (k3s) — código**: spec `docs/superpowers/specs/2026-09-10-containers-k3s-design.md`, plano `docs/superpowers/plans/2026-09-10-containers-k3s.md`. Backend (`internal/kube`, `internal/k3s`, usecase, API, WebSocket) e frontend (`/containers/*`) implementados com testes.
+- [ ] **Fase containers — validação real**: preencher `K3S_NODE_IP`/`K3S_NODE_GATEWAY` no `.env`, rodar `go run ./cmd/k3s-bootstrap`, depois `go run ./cmd/proxmox-check --k3s` e o roteiro ponta a ponta da Task 16 do plano. Se o pod for rejeitado por PodSecurity `restricted`, trocar para `baseline` em `internal/kube/namespace.go` e registrar na spec.
+- [ ] **Containers v2**: start/stop/restart, build por Dockerfile/tarball (kaniko), TLS no Ingress, GPU.
