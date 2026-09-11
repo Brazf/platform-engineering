@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -27,16 +28,25 @@ type Config struct {
 	JWTExpiryHours int
 
 	// Proxmox
-	ProxmoxHost        string
-	ProxmoxNode        string
-	ProxmoxTokenID     string
-	ProxmoxTokenSecret string
-	ProxmoxGPUPCI      string // ex: "0000:01:00.0,pcie=1" — vazio desabilita passthrough
-	ProxmoxUbuntuTemplateVMID int // VMID do template cloud-init Ubuntu clonado para VMs Ubuntu
+	ProxmoxHost               string
+	ProxmoxNode               string
+	ProxmoxTokenID            string
+	ProxmoxTokenSecret        string
+	ProxmoxGPUPCI             string // ex: "0000:01:00.0,pcie=1" — vazio desabilita passthrough
+	ProxmoxUbuntuTemplateVMID int    // VMID do template cloud-init Ubuntu clonado para VMs Ubuntu
 
 	// Terraform
 	TerraformBin     string // caminho do binário terraform. Default: "terraform" (resolve via PATH)
 	TerraformWorkdir string // raiz dos workspaces por VM
+
+	// k3s / containers
+	K3SNodeIP       string // IP fixo da VM do cluster em CIDR, ex: "10.0.0.50/24"
+	K3SNodeGateway  string
+	K3SNodeCPU      int
+	K3SNodeMemoryMB int
+	K3SNodeDiskGB   int
+	IngressDomain   string // vazio → containers HTTP expostos por NodePort
+	KubeconfigPath  string // default: <TerraformWorkdir>/k3s/kubeconfig
 
 	// Server
 	ServerPort string
@@ -55,24 +65,45 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("PROXMOX_UBUNTU_TEMPLATE_VMID inválido: %w", err)
 	}
 
+	k3sCPU, err := strconv.Atoi(getEnv("K3S_NODE_CPU", "8"))
+	if err != nil {
+		return nil, fmt.Errorf("K3S_NODE_CPU inválido: %w", err)
+	}
+	k3sMem, err := strconv.Atoi(getEnv("K3S_NODE_MEMORY_MB", "16384"))
+	if err != nil {
+		return nil, fmt.Errorf("K3S_NODE_MEMORY_MB inválido: %w", err)
+	}
+	k3sDisk, err := strconv.Atoi(getEnv("K3S_NODE_DISK_GB", "200"))
+	if err != nil {
+		return nil, fmt.Errorf("K3S_NODE_DISK_GB inválido: %w", err)
+	}
+	tfWorkdir := getEnv("TERRAFORM_WORKDIR", "/var/lib/proxlab/terraform")
+
 	cfg := &Config{
-		AppEnv:             getEnv("APP_ENV", "development"),
-		DBHost:             getEnv("DB_HOST", "localhost"),
-		DBPort:             getEnv("DB_PORT", "5432"),
-		DBUser:             getEnv("DB_USER", "proxlab"),
-		DBPassword:         getEnv("DB_PASSWORD", ""),
-		DBName:             getEnv("DB_NAME", "proxlab"),
-		JWTSecret:          getEnv("JWT_SECRET", ""),
-		JWTExpiryHours:     jwtExpiry,
-		ProxmoxHost:        getEnv("PROXMOX_HOST", ""),
-		ProxmoxNode:        getEnv("PROXMOX_NODE", "pve"),
-		ProxmoxTokenID:     getEnv("PROXMOX_TOKEN_ID", ""),
-		ProxmoxTokenSecret: getEnv("PROXMOX_TOKEN_SECRET", ""),
-		ProxmoxGPUPCI:      getEnv("PROXMOX_GPU_PCI", ""),
+		AppEnv:                    getEnv("APP_ENV", "development"),
+		DBHost:                    getEnv("DB_HOST", "localhost"),
+		DBPort:                    getEnv("DB_PORT", "5432"),
+		DBUser:                    getEnv("DB_USER", "proxlab"),
+		DBPassword:                getEnv("DB_PASSWORD", ""),
+		DBName:                    getEnv("DB_NAME", "proxlab"),
+		JWTSecret:                 getEnv("JWT_SECRET", ""),
+		JWTExpiryHours:            jwtExpiry,
+		ProxmoxHost:               getEnv("PROXMOX_HOST", ""),
+		ProxmoxNode:               getEnv("PROXMOX_NODE", "pve"),
+		ProxmoxTokenID:            getEnv("PROXMOX_TOKEN_ID", ""),
+		ProxmoxTokenSecret:        getEnv("PROXMOX_TOKEN_SECRET", ""),
+		ProxmoxGPUPCI:             getEnv("PROXMOX_GPU_PCI", ""),
 		ProxmoxUbuntuTemplateVMID: ubuntuTemplate,
-		TerraformBin:       getEnv("TERRAFORM_BIN", "terraform"),
-		TerraformWorkdir:   getEnv("TERRAFORM_WORKDIR", "/var/lib/proxlab/terraform"),
-		ServerPort:         getEnv("SERVER_PORT", "8080"),
+		TerraformBin:              getEnv("TERRAFORM_BIN", "terraform"),
+		TerraformWorkdir:          tfWorkdir,
+		K3SNodeIP:                 getEnv("K3S_NODE_IP", ""),
+		K3SNodeGateway:            getEnv("K3S_NODE_GATEWAY", ""),
+		K3SNodeCPU:                k3sCPU,
+		K3SNodeMemoryMB:           k3sMem,
+		K3SNodeDiskGB:             k3sDisk,
+		IngressDomain:             getEnv("INGRESS_DOMAIN", ""),
+		KubeconfigPath:            getEnv("KUBECONFIG_PATH", filepath.Join(tfWorkdir, "k3s", "kubeconfig")),
+		ServerPort:                getEnv("SERVER_PORT", "8080"),
 	}
 
 	if err := cfg.validate(); err != nil {

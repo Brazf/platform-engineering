@@ -20,12 +20,6 @@ var (
 	ErrLimitExceeded = errors.New("limite de recursos excedido para o seu perfil")
 )
 
-// limites máximos por role
-var roleLimits = map[string]struct{ MaxCPU, MaxMemMB int }{
-	"aluno":       {MaxCPU: 2, MaxMemMB: 4096},
-	"pesquisador": {MaxCPU: 8, MaxMemMB: 16384},
-}
-
 // CreateVMRequest é o input para criação de VM, incluindo role para validação de limites.
 type CreateVMRequest struct {
 	Name       string
@@ -253,21 +247,6 @@ func (uc *VMUseCase) findOwned(ctx context.Context, userID, vmID uuid.UUID) (*en
 		return nil, ErrAccessDenied
 	}
 	return vm, nil
-}
-
-func validateRoleLimits(role string, cpuCores, memoryMB int) error {
-	limits, ok := roleLimits[role]
-	if !ok {
-		// role desconhecida → aplica limites de aluno por segurança
-		limits = roleLimits["aluno"]
-	}
-	if cpuCores > limits.MaxCPU {
-		return fmt.Errorf("%w: perfil '%s' permite no máximo %d CPU(s)", ErrLimitExceeded, role, limits.MaxCPU)
-	}
-	if memoryMB > limits.MaxMemMB {
-		return fmt.Errorf("%w: perfil '%s' permite no máximo %dMB de RAM", ErrLimitExceeded, role, limits.MaxMemMB)
-	}
-	return nil
 }
 
 func osTypeFromTemplate(template string) string {
