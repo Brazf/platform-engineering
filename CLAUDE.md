@@ -47,7 +47,7 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API REST            
 - 401 → redirecionar para /login
 
 ## Regras
-- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend
+- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceção acordada: `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
 - Sempre: `if err != nil`, `context.Context` em I/O, validar payload nos handlers, UUIDs como PK
 
 ## Fases
