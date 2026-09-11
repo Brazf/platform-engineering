@@ -137,3 +137,85 @@ export async function apiRebootVM(id: string): Promise<void> {
 export async function apiDeleteVM(id: string): Promise<void> {
   return request<void>(`/api/vms/${id}`, { method: "DELETE" });
 }
+
+// ─── Containers ───────────────────────────────────────────────────────────────
+
+export interface CatalogImage {
+  key: string;
+  label: string;
+  image: string;
+  port: number;
+  protocol: "http" | "tcp" | "";
+  mount_path: string;
+  command: string;
+  required_env: string[] | null;
+}
+
+export interface ContainerStatus {
+  phase: "pending" | "running" | "failed" | "unknown";
+  message: string;
+}
+
+export interface Container {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  cpu_millis: number;
+  memory_mb: number;
+  port: number;
+  protocol: "http" | "tcp";
+  node_port: number;
+  env: Record<string, string>;
+  command: string;
+  persistent_gb: number;
+  mount_path: string;
+  namespace: string;
+  created_at: string;
+  status: ContainerStatus;
+  external_url: string;
+  internal_address: string;
+}
+
+export interface CreateContainerInput {
+  name: string;
+  description?: string;
+  image: string;
+  cpu_millis: number;
+  memory_mb: number;
+  port: number;
+  protocol: "http" | "tcp";
+  env: Record<string, string>;
+  command?: string;
+  persistent_gb: number;
+  mount_path?: string;
+}
+
+export const STATUS_LABEL: Record<ContainerStatus["phase"], string> = {
+  pending: "INICIANDO", running: "EM EXECUÇÃO", failed: "FALHOU", unknown: "DESCONHECIDO",
+};
+
+export async function apiGetCatalog(): Promise<CatalogImage[]> {
+  return request<CatalogImage[]>("/api/containers/catalog");
+}
+export async function apiListContainers(): Promise<Container[]> {
+  return request<Container[]>("/api/containers");
+}
+export async function apiGetContainer(id: string): Promise<Container> {
+  return request<Container>(`/api/containers/${id}`);
+}
+export async function apiCreateContainer(data: CreateContainerInput): Promise<Container> {
+  return request<Container>("/api/containers", { method: "POST", body: JSON.stringify(data) });
+}
+export async function apiDeleteContainer(id: string): Promise<void> {
+  return request<void>(`/api/containers/${id}`, { method: "DELETE" });
+}
+
+/** URL do WebSocket de terminal/logs com ?token=, mesma regra do terminal de VM. */
+export function containerWsURL(id: string, kind: "terminal" | "logs"): string {
+  const token = getToken();
+  const wsBase = API_BASE
+    ? API_BASE.replace(/^http/, "ws")
+    : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+  return `${wsBase}/api/containers/${id}/${kind}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+}
