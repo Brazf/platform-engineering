@@ -54,9 +54,10 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API REST            
 1. Auth JWT + usuários ← ✅ concluído
 2. CRUD de VMs no Proxmox ← ✅ concluído
 3. Terminal web (xterm.js + WebSocket) ← ✅ concluído
-4. Integração frontend ↔ backend (VMs) ← **atual**
-5. Containers LXC (futura)
-6. Migração do provisionamento para Terraform ← ✅ concluído
+4. Integração frontend ↔ backend (VMs) ← ✅ concluído (fluxo principal; ajustes pontuais ainda surgirão)
+5. Migração do provisionamento para Terraform ← ✅ concluído
+6. Containers de aplicação em k3s ← **atual** (LXC descartado; decisões em `docs/superpowers/specs/2026-09-08-containers-proposta.md`)
 
 ## Pendências
 - [x] **Migrar provisionamento de recursos para Terraform**: o backend deixou de criar/destruir VMs via API REST do Proxmox e passou a gerar/aplicar configuração Terraform (`internal/terraform/`, provider `bpg/proxmox`). Spec: `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
+- [ ] **Fase containers (k3s)**: brainstorming → spec → plano. VM do cluster nasce por um comando de bootstrap (`cmd/k3s-bootstrap`), executado uma vez; containers gerenciados via `client-go` (`internal/kube/`).

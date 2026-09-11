@@ -186,8 +186,8 @@ GET    /api/images                     imagens do usuário no registry privado
 
 - A seção "Modelo de Container" passa a usar `client-go` (não Terraform) — nova porta de domínio
   `ContainerRuntime` em `internal/domain/repository`, implementada em `internal/kube/`.
-- O `Provisioner` Terraform existente ganha um segundo template (`k3s-node.tf.tmpl`) para a VM do cluster,
-  ou a VM é criada uma vez por um comando `cmd/k3s-bootstrap`. Definir no brainstorming da implementação.
+- **Decidido (2026-09-10):** a VM do cluster é criada uma vez por um comando `cmd/k3s-bootstrap` (clone do
+  template 9000 + cloud-init com k3s, registry e quotas base). O `Provisioner` de VMs de usuário não muda.
 - Sem start/stop na v1, `status` do container vem direto do `Deployment`/`Pod` (`Running`, `Pending`,
   `CrashLoopBackOff`…), sem coluna de status mutável no banco.
 
@@ -207,9 +207,9 @@ Tudo em `dev`, commitado. Feito nesta rodada:
   Reiniciar (`POST /api/vms/:id/reboot`) e Desligar funcionais.
 - Testado de ponta a ponta pelo usuário contra o Proxmox real (VM 102).
 
-Pendências pequenas: apagar branch `feat/terraform-provisioning`; `.env.example` está no `.gitignore`, então as
+Pendências pequenas: `.env.example` está no `.gitignore`, então as
 envs novas (`TERRAFORM_BIN`, `TERRAFORM_WORKDIR`, `PROXMOX_UBUNTU_TEMPLATE_VMID`) precisam ser adicionadas à mão;
 Windows precisará de noVNC (sem console serial).
 
-**Próximo passo sugerido:** responder às decisões em aberto acima (principalmente a 1 — LXC antes ou k3s direto)
-e então rodar brainstorming → spec → plano da fase de containers, no mesmo fluxo usado para o Terraform.
+**Próximo passo:** decisões todas tomadas (tabela acima + bootstrap por comando). Rodar brainstorming → spec →
+plano da implementação da fase de containers, no mesmo fluxo usado para o Terraform.
