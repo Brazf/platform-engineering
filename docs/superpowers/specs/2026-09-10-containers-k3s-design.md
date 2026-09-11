@@ -23,6 +23,14 @@ O runtime é um cluster k3s single-node numa VM do Proxmox, criada pelo próprio
 | 17 | Variáveis de ambiente | Persistidas no banco (jsonb) para exibição no detalhe; no cluster viram `Secret` |
 | 18 | GPU em containers | Fora da v1; campo removido do formulário |
 
+### Desvios registrados na implementação (2026-09-11)
+
+- `ContainerRuntime.Apply(ctx, c, ingressDomain)` recebe o domínio como argumento, para o pacote `kube` não depender de `config`.
+- O `Provisioner` continua recebendo `uuid.UUID`; o bootstrap usa o workspace determinístico `uuid.NewSHA1(uuid.NameSpaceOID, "proxlab-k3s")`.
+- `client-go` fixado em **v0.35.x** (última linha compatível com Go 1.25; v0.36+ exige Go 1.26).
+- Nível PodSecurity do namespace do usuário: `restricted` (provisório). Confirmar no smoke test real; se as imagens do catálogo forem rejeitadas, baixar para `baseline`.
+- Páginas dinâmicas do frontend (`/containers/[id]`, `/containers/[id]/utilizar`) são client components sem `generateStaticParams`, igual às páginas de VM (build `standalone`).
+
 ## Seção 1 — Bootstrap do cluster (`cmd/k3s-bootstrap`)
 
 Comando Go executado uma vez pelo admin (`docker compose run backend k3s-bootstrap`), reutilizando

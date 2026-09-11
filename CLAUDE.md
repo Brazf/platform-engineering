@@ -20,7 +20,10 @@ backend/
 │   ├── middleware/             # JWT, CORS
 │   ├── proxmox/                # cliente REST Proxmox (status/start/stop/termproxy)
 │   ├── terraform/              # Provisioner: gera main.tf e roda terraform-exec
-│   └── websocket/              # proxy terminal VMs
+│   ├── kube/                   # ContainerRuntime: client-go contra o k3s (apply/status/exec/logs)
+│   ├── k3s/                    # bootstrap do cluster: chave SSH, instala k3s, kubeconfig
+│   └── websocket/              # proxy terminal VMs + terminal/logs de containers
+├── cmd/k3s-bootstrap/          # cria a VM k3s-server e instala o k3s (roda uma vez)
 └── migrations/
 ```
 
@@ -28,6 +31,7 @@ backend/
 Handler → UseCase → Repository Interface → GORM → PostgreSQL
 Handler → UseCase → Provisioner Interface → terraform-exec (provider bpg/proxmox) → Proxmox   (criar/destruir VM)
 Handler → UseCase → ProxmoxClient Interface → Proxmox API REST                                (status/start/stop/terminal)
+Handler → UseCase → ContainerRuntime Interface → client-go → k3s                              (containers)
 
 ## Proxmox
 - Auth: API Token via header `Authorization: PVEAPIToken=<id>=<secret>`
@@ -39,6 +43,9 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API REST            
 - Env Terraform: `TERRAFORM_BIN`, `TERRAFORM_WORKDIR`
 - VMs Ubuntu: clone completo do template cloud-init `PROXMOX_UBUNTU_TEMPLATE_VMID` (default 9000, `ubuntu-2404-cloud`); nascem ligadas, com usuário `ubuntu` e senha gerada por VM, devolvida uma única vez em `credentials` no `201` de `POST /api/vms` (não persistida). Outros SOs seguem o fluxo de VM vazia.
 - VMs criadas antes da migração não têm workspace: ao deletar, só o registro sai do banco; a VM é removida manualmente no Proxmox
+- Containers: cluster k3s single-node na VM `k3s-server` (criada por `cmd/k3s-bootstrap`, IP fixo `K3S_NODE_IP`). Backend fala com o cluster via `internal/kube` (client-go v0.35, kubeconfig em `KUBECONFIG_PATH`; ausente → rotas de containers respondem 503). Namespace por usuário `u-<8 chars>`, quota por perfil, status lido do cluster a cada request (sem coluna no banco). HTTP + `INGRESS_DOMAIN` → Ingress `http://<nome>-<ns>.<domínio>`; TCP ou sem domínio → NodePort 30000–32767 em `K3S_NODE_IP`; porta 0 = só terminal.
+- Env k3s: `K3S_NODE_IP`, `K3S_NODE_GATEWAY`, `K3S_NODE_CPU`, `K3S_NODE_MEMORY_MB`, `K3S_NODE_DISK_GB`, `INGRESS_DOMAIN`, `KUBECONFIG_PATH`
+- Smoke tests: `go run ./cmd/proxmox-check` (VM) e `go run ./cmd/proxmox-check --k3s` (container no cluster real)
 
 ## Autenticação
 - JWT salvo no localStorage com chave `"token"`
@@ -56,7 +63,7 @@ Handler → UseCase → ProxmoxClient Interface → Proxmox API REST            
 3. Terminal web (xterm.js + WebSocket) ← ✅ concluído
 4. Integração frontend ↔ backend (VMs) ← ✅ concluído (fluxo principal; ajustes pontuais ainda surgirão)
 5. Migração do provisionamento para Terraform ← ✅ concluído
-6. Containers de aplicação em k3s ← **atual** (LXC descartado; decisões em `docs/superpowers/specs/2026-09-08-containers-proposta.md`)
+6. Containers de aplicação em k3s ← ✅ código concluído (v1); falta rodar `k3s-bootstrap` e o smoke `--k3s` no Proxmox real
 
 ## Pendências
 - [x] **Migrar provisionamento de recursos para Terraform**: o backend deixou de criar/destruir VMs via API REST do Proxmox e passou a gerar/aplicar configuração Terraform (`internal/terraform/`, provider `bpg/proxmox`). Spec: `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
