@@ -108,10 +108,11 @@ func smokeK3s(cfg *config.Config) {
 	if err := rt.Apply(ctx, c, cfg.IngressDomain); err != nil {
 		fatalf("Apply: %v", err)
 	}
-	fmt.Println("▶ 3/4 Aguardando running")
+	fmt.Println("▶ 3/4 Aguardando running (limpa o container ao falhar)")
 	for {
 		st, err := rt.Status(ctx, ns, []string{c.Name})
 		if err != nil {
+			_ = rt.Delete(context.Background(), ns, c.Name)
 			fatalf("Status: %v", err)
 		}
 		fmt.Printf("  %s %s\n", st[c.Name].Phase, st[c.Name].Message)

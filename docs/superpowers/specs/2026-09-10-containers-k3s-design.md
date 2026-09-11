@@ -28,7 +28,8 @@ O runtime é um cluster k3s single-node numa VM do Proxmox, criada pelo próprio
 - `ContainerRuntime.Apply(ctx, c, ingressDomain)` recebe o domínio como argumento, para o pacote `kube` não depender de `config`.
 - O `Provisioner` continua recebendo `uuid.UUID`; o bootstrap usa o workspace determinístico `uuid.NewSHA1(uuid.NameSpaceOID, "proxlab-k3s")`.
 - `client-go` fixado em **v0.35.x** (última linha compatível com Go 1.25; v0.36+ exige Go 1.26).
-- Nível PodSecurity do namespace do usuário: `restricted` (provisório). Confirmar no smoke test real; se as imagens do catálogo forem rejeitadas, baixar para `baseline`.
+- Nível PodSecurity do namespace do usuário: **`baseline`**. O smoke real (2026-09-11) confirmou que `restricted` rejeita os pods (`runAsNonRoot != true`), pois as imagens do catálogo iniciam como root. O container continua com `allowPrivilegeEscalation=false`, `capabilities.drop=ALL` e seccomp `RuntimeDefault`.
+- Acesso ao cluster a partir da rede da VPN: só a porta 22 passa. Para testar do notebook, túnel SSH (`ssh -N -L 6443:127.0.0.1:6443 ubuntu@<K3S_NODE_IP>`) e `KUBECONFIG_PATH` apontando para uma cópia do kubeconfig com `server: https://127.0.0.1:6443`. Em produção o backend roda dentro da rede do laboratório e fala direto com `K3S_NODE_IP:6443`.
 - Páginas dinâmicas do frontend (`/containers/[id]`, `/containers/[id]/utilizar`) são client components sem `generateStaticParams`, igual às páginas de VM (build `standalone`).
 
 ## Seção 1 — Bootstrap do cluster (`cmd/k3s-bootstrap`)

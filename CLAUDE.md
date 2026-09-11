@@ -63,10 +63,12 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 3. Terminal web (xterm.js + WebSocket) ← ✅ concluído
 4. Integração frontend ↔ backend (VMs) ← ✅ concluído (fluxo principal; ajustes pontuais ainda surgirão)
 5. Migração do provisionamento para Terraform ← ✅ concluído
-6. Containers de aplicação em k3s ← ✅ código concluído (v1); falta rodar `k3s-bootstrap` e o smoke `--k3s` no Proxmox real
+6. Containers de aplicação em k3s ← ✅ concluído (v1): cluster `k3s-server` (VMID 103, 172.26.3.250) no ar, smoke `--k3s` verde em 2026-09-11
 
 ## Pendências
 - [x] **Migrar provisionamento de recursos para Terraform**: o backend deixou de criar/destruir VMs via API REST do Proxmox e passou a gerar/aplicar configuração Terraform (`internal/terraform/`, provider `bpg/proxmox`). Spec: `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
 - [x] **Fase containers (k3s) — código**: spec `docs/superpowers/specs/2026-09-10-containers-k3s-design.md`, plano `docs/superpowers/plans/2026-09-10-containers-k3s.md`. Backend (`internal/kube`, `internal/k3s`, usecase, API, WebSocket) e frontend (`/containers/*`) implementados com testes.
-- [ ] **Fase containers — validação real**: preencher `K3S_NODE_IP`/`K3S_NODE_GATEWAY` no `.env`, rodar `go run ./cmd/k3s-bootstrap`, depois `go run ./cmd/proxmox-check --k3s` e o roteiro ponta a ponta da Task 16 do plano. Se o pod for rejeitado por PodSecurity `restricted`, trocar para `baseline` em `internal/kube/namespace.go` e registrar na spec.
+- [x] **Fase containers — bootstrap e smoke**: `k3s-server` criado no pool `researchers` (`K3S_NODE_POOL`), PodSecurity ajustado para `baseline`. Da VPN só a porta 22 passa: testar do notebook exige túnel SSH para 6443 (ver spec, "Desvios registrados").
+- [ ] **Fase containers — ponta a ponta pelo front**: roteiro manual da Task 16 do plano (criar postgres/nginx pelo `/containers/criar`, terminal, logs, excluir). Backend local precisa do túnel SSH e `KUBECONFIG_PATH=~/.proxlab/terraform/k3s/kubeconfig-tunnel`.
+- [ ] **Verificar fluxo de VMs Ubuntu**: o provider bpg só manda `pool` no clone quando `pool_id` está definido; se o front não mandar pool, o token recebe 403. Confirmar que `POST /api/vms` ainda funciona.
 - [ ] **Containers v2**: start/stop/restart, build por Dockerfile/tarball (kaniko), TLS no Ingress, GPU.

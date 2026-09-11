@@ -17,9 +17,11 @@ import (
 var applyOpts = metav1.ApplyOptions{FieldManager: fieldManager, Force: true}
 
 func (r *Runtime) EnsureNamespace(ctx context.Context, ns string, q repository.ResourceQuotaSpec) error {
+	// baseline (não restricted): as imagens do catálogo (nginx, postgres) iniciam
+	// como root e trocam de usuário; restricted rejeita runAsNonRoot=false.
 	nsCfg := applycorev1.Namespace(ns).WithLabels(map[string]string{
 		"app.kubernetes.io/managed-by":               "proxlab",
-		"pod-security.kubernetes.io/enforce":         "restricted",
+		"pod-security.kubernetes.io/enforce":         "baseline",
 		"pod-security.kubernetes.io/enforce-version": "latest",
 	})
 	if _, err := r.cs.CoreV1().Namespaces().Apply(ctx, nsCfg, applyOpts); err != nil {

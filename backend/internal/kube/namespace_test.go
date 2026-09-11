@@ -23,7 +23,7 @@ func TestEnsureNamespace_CreatesQuotaLimitRangeAndPolicy(t *testing.T) {
 
 	ns, err := cs.CoreV1().Namespaces().Get(ctx, "u-abc12345", metav1.GetOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, "restricted", ns.Labels["pod-security.kubernetes.io/enforce"])
+	assert.Equal(t, "baseline", ns.Labels["pod-security.kubernetes.io/enforce"])
 	assert.Equal(t, "proxlab", ns.Labels["app.kubernetes.io/managed-by"])
 
 	rq, err := cs.CoreV1().ResourceQuotas("u-abc12345").Get(ctx, "proxlab-quota", metav1.GetOptions{})
