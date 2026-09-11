@@ -43,6 +43,7 @@ type Config struct {
 	// k3s / containers
 	K3SNodeIP       string // IP fixo da VM do cluster em CIDR, ex: "10.0.0.50/24"
 	K3SNodeGateway  string
+	K3SNodePool     string // resource pool do Proxmox onde a VM do cluster nasce
 	K3SNodeCPU      int
 	K3SNodeMemoryMB int
 	K3SNodeDiskGB   int

@@ -28,6 +28,7 @@ type InstallOptions struct {
 	TemplateVMID   int
 	NodeIP         string // CIDR
 	Gateway        string
+	Pool           string // resource pool do Proxmox (o token só cria VMs dentro dele)
 	CPU, MemoryMB  int
 	DiskGB         int
 	KubeconfigPath string
@@ -74,6 +75,7 @@ func Install(ctx context.Context, o InstallOptions) error {
 		logf("▶ 1/4 Provisionando VM k3s-server (%s)", host)
 		spec := repository.VMSpec{
 			Name: "k3s-server", CPUCores: o.CPU, MemoryMB: o.MemoryMB, DiskGB: o.DiskGB,
+			Pool:             o.Pool,
 			Tags:             []string{"proxlab", "k3s"},
 			CloneVMID:        o.TemplateVMID,
 			CloudInitUser:    sshUser,

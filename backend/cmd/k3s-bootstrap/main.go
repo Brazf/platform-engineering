@@ -27,7 +27,7 @@ func main() {
 
 	err = k3s.Install(ctx, k3s.InstallOptions{
 		Provisioner: runner, Workdir: cfg.TerraformWorkdir, TemplateVMID: cfg.ProxmoxUbuntuTemplateVMID,
-		NodeIP: cfg.K3SNodeIP, Gateway: cfg.K3SNodeGateway,
+		NodeIP: cfg.K3SNodeIP, Gateway: cfg.K3SNodeGateway, Pool: cfg.K3SNodePool,
 		CPU: cfg.K3SNodeCPU, MemoryMB: cfg.K3SNodeMemoryMB, DiskGB: cfg.K3SNodeDiskGB,
 		KubeconfigPath: cfg.KubeconfigPath, Out: os.Stdout,
 	})
