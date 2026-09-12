@@ -26,7 +26,6 @@ type createVMRequest struct {
 	MemoryMB   int      `json:"memory_mb"   binding:"required,min=512"`
 	DiskGB     int      `json:"disk_gb"     binding:"required,min=4"`
 	OSTemplate string   `json:"os_template" binding:"required"`
-	Node       string   `json:"node"`
 	Pool       string   `json:"pool"`
 	Tags       []string `json:"tags"`
 	RequireGPU bool     `json:"require_gpu"`
@@ -34,8 +33,9 @@ type createVMRequest struct {
 
 // Create godoc
 // POST /api/vms
-// Body: { "name": "minha-vm", "cpu_cores": 2, "memory_mb": 2048, "disk_gb": 20, "os_template": "ubuntu-22.04", "node": "pve" }
+// Body: { "name": "minha-vm", "cpu_cores": 2, "memory_mb": 2048, "disk_gb": 20, "os_template": "ubuntu-22.04" }
 // 201: { "id": "uuid", "proxmox_vm_id": 100, "name": "minha-vm", "status": "creating", "websocket_url": "/api/vms/uuid/terminal" }
+//      VMs Ubuntu (clonadas do template cloud-init) incluem "credentials": { "username", "password" } — retornado uma única vez.
 // 422: { "error": "limite de recursos excedido..." }
 func (h *VMHandler) Create(c *gin.Context) {
 	userID, ok := getUserID(c)
@@ -50,13 +50,12 @@ func (h *VMHandler) Create(c *gin.Context) {
 		return
 	}
 
-	vm, err := h.vmUC.CreateVM(c.Request.Context(), userID, usecase.CreateVMRequest{
+	result, err := h.vmUC.CreateVM(c.Request.Context(), userID, usecase.CreateVMRequest{
 		Name:       req.Name,
 		CPUCores:   req.CPUCores,
 		MemoryMB:   req.MemoryMB,
 		DiskGB:     req.DiskGB,
 		OSTemplate: req.OSTemplate,
-		Node:       req.Node,
 		Pool:       req.Pool,
 		Tags:       req.Tags,
 		Role:       role,
@@ -71,13 +70,21 @@ func (h *VMHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	vm := result.VM
+	resp := gin.H{
 		"id":            vm.ID,
 		"proxmox_vm_id": vm.ProxmoxVMID,
 		"name":          vm.Name,
 		"status":        vm.Status,
 		"websocket_url": "/api/vms/" + vm.ID.String() + "/terminal",
-	})
+	}
+	if result.Credentials != nil {
+		resp["credentials"] = gin.H{
+			"username": result.Credentials.Username,
+			"password": result.Credentials.Password,
+		}
+	}
+	c.JSON(http.StatusCreated, resp)
 }
 
 // List godoc
@@ -167,6 +174,29 @@ func (h *VMHandler) Stop(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "stopped"})
+}
+
+// Reboot godoc
+// POST /api/vms/:id/reboot
+// 200: { "status": "running" }
+func (h *VMHandler) Reboot(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		return
+	}
+
+	vmID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id de VM inválido"})
+		return
+	}
+
+	if err := h.vmUC.RebootVM(c.Request.Context(), userID, vmID); err != nil {
+		handleVMError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "running"})
 }
 
 // Delete godoc

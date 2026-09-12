@@ -1,35 +1,42 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { InternalBreadcrumb, InternalHeader } from "@/components";
-import { apiGetVM, apiStartVM, apiStopVM, apiDeleteVM, type VM } from "@/lib/api";
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("pt-BR");
-  } catch {
-    return "-";
-  }
-}
+import { DetailHeader, FORM, Field, Group, InternalBreadcrumb, InternalHeader, PageNotice } from "@/components";
+import { apiDeleteVM, apiGetVM, apiStartVM, apiStopVM, VM_STATUS_LABEL, type VM } from "@/lib/api";
 
 export default function MaquinaVirtualDetalhePage() {
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string;
 
-  const [vm, setVm]           = useState<VM | null>(null);
-  const [error, setError]     = useState("");
+  const [vm, setVm] = useState<VM | null>(null);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [acting, setActing]   = useState(false);
+  const [acting, setActing] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    apiGetVM(id)
-      .then(setVm)
-      .catch(err => setError(err instanceof Error ? err.message : "Erro ao carregar VM."))
-      .finally(() => setLoading(false));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await apiGetVM(id);
+        if (cancelled) return;
+        setVm(data);
+        if (data.status === "creating") timer = setTimeout(load, 5000);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar VM.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [id]);
 
   async function handleStart() {
@@ -51,7 +58,7 @@ export default function MaquinaVirtualDetalhePage() {
     setError("");
     try {
       await apiStopVM(id);
-      setVm(v => v ? { ...v, status: "stopped" } : v);
+      setVm((v) => (v ? { ...v, status: "stopped" } : v));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao parar VM.");
     } finally {
@@ -61,6 +68,7 @@ export default function MaquinaVirtualDetalhePage() {
 
   async function handleDelete() {
     if (!vm) return;
+    if (!confirm("Excluir esta máquina virtual? O disco será apagado.")) return;
     setActing(true);
     setError("");
     try {
@@ -72,7 +80,7 @@ export default function MaquinaVirtualDetalhePage() {
     }
   }
 
-  const isRunning  = vm?.status === "running";
+  const isRunning = vm?.status === "running";
   const isCreating = vm?.status === "creating";
 
   return (
@@ -88,98 +96,57 @@ export default function MaquinaVirtualDetalhePage() {
           <h1 className="text-[41.8px] leading-none font-light text-black">Máquina Virtual</h1>
         </div>
 
-        {loading && (
-          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">CARREGANDO...</p>
-        )}
+        <div className="mx-auto max-w-[1100px]">
+          {error && <PageNotice kind="error">{error}</PageNotice>}
+          {loading && <PageNotice kind="info">Carregando...</PageNotice>}
+          {!loading && !vm && !error && <PageNotice kind="info">Máquina virtual não encontrada.</PageNotice>}
 
-        {!loading && vm && (
-          <>
-            <section className="h-[137px] bg-white px-3 pt-2 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
-              <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">DETALHES</p>
-              <p className="mt-[10px] text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">NOME: {vm.name}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">SISTEMA: {vm.os_template}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DATA DE CRIAÇÃO: {formatDate(vm.created_at)}</p>
-            </section>
+          {vm && (
+            <section className="bg-white px-10 pt-7 pb-9 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+              <DetailHeader name={vm.name} status={{ label: VM_STATUS_LABEL[vm.status], phase: vm.status }} />
 
-            <section className="mt-5 h-[157px] bg-white px-3 pt-2 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
-              <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">CONFIGURAÇÃO</p>
-              <p className="mt-[10px] text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">SISTEMA OPERACIONAL: {vm.os_template.toUpperCase()}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">QUANTIDADE DE NÚCLEOS (CPUS): {vm.cpu_cores}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">QUANTIDADE DE MEMÓRIA: {vm.memory_mb} MB</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">QUANTIDADE DE ARMAZENAMENTO: {vm.disk_gb} GB</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">CONSOME GPU: {vm.require_gpu ? "SIM" : "NÃO"}</p>
-            </section>
+              <div className="mt-7 flex flex-col gap-7">
+                <Group title="Configuração">
+                  <Field label="Sistema operacional">{vm.os_template}</Field>
+                  <Field label="Núcleos de CPU">{vm.cpu_cores}</Field>
+                  <Field label="Memória">{vm.memory_mb / 1024} GB</Field>
+                  <Field label="Disco">{vm.disk_gb} GB</Field>
+                  <Field label="GPU">{vm.require_gpu ? "sim" : "não"}</Field>
+                  <Field label="Criado em">{new Date(vm.created_at).toLocaleString("pt-BR")}</Field>
+                </Group>
 
-            <section className="mt-5 h-[114px]">
-              <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#E52207]">ESTADO DA MÁQUINA</p>
-              <div className="mt-[11px] border-t border-[#CCCCCC]" />
-
-              <div className="flex h-[39px] items-center justify-between border-b border-[#CCCCCC] px-4">
-                <span className="text-[14px] leading-none text-[#1351B4]">MÁQUINA LIGADA</span>
-                <span className={`h-7 w-7 rounded-full ${isRunning ? "bg-[#1FA433]" : "bg-[#CCCCCC]"}`} />
-              </div>
-
-              <div className="flex h-[39px] items-center justify-between px-4">
-                <span className="text-[14px] leading-none text-[#1351B4]">MÁQUINA DESLIGADA</span>
-                <span className={`h-7 w-7 rounded-full ${!isRunning && !isCreating ? "bg-[#FA1D1D]" : "bg-[#CCCCCC]"}`} />
+                <Group title="Proxmox">
+                  <Field label="ID da VM">{vm.proxmox_vm_id}</Field>
+                  <Field label="Nó">{vm.node}</Field>
+                  {vm.pool && <Field label="Pool">{vm.pool}</Field>}
+                  {vm.tags && <Field label="Tags">{vm.tags.split(";").join(", ")}</Field>}
+                </Group>
               </div>
             </section>
+          )}
 
-            {error && (
-              <p className="mt-3 text-[12px] leading-none text-[#B21D38]">{error}</p>
-            )}
-
-            <div className="flex h-[71px] items-center justify-center gap-2 py-4">
-              {/* Botão esquerdo (vermelho): Excluir quando parada / Parar quando rodando */}
+          {vm && (
+            <div className="flex flex-wrap items-center justify-center gap-3 py-6">
+              <Link href="/maquinas-virtuais" className={FORM.outlineBtn}>Voltar</Link>
               {isRunning ? (
-                <button
-                  type="button"
-                  onClick={handleStop}
-                  disabled={acting}
-                  className="flex h-[39px] w-[230px] items-center justify-center rounded-[20px] border border-[#B21D38] text-[16.8px] leading-none font-semibold text-[#B21D38] disabled:opacity-60"
-                >
-                  {acting ? "Parando..." : "Parar Máquina Virtual"}
+                <button type="button" onClick={handleStop} disabled={acting} className={FORM.dangerBtn}>
+                  {acting ? "Parando..." : "Desligar máquina"}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={acting}
-                  className="flex h-[39px] w-[230px] items-center justify-center rounded-[20px] border border-[#B21D38] text-[16.8px] leading-none font-semibold text-[#B21D38] disabled:opacity-60"
-                >
-                  {acting ? "Excluindo..." : "Excluir Máquina Virtual"}
+                <button type="button" onClick={handleDelete} disabled={acting || isCreating} className={FORM.dangerBtn}>
+                  {acting ? "Excluindo..." : "Excluir máquina"}
                 </button>
               )}
-
-              {/* Botão direito (azul): Acessar terminal quando rodando / Iniciar quando parada */}
               {isRunning ? (
-                <Link
-                  href={`/maquinas-virtuais/${id}/utilizar`}
-                  className="flex h-[39px] w-[225px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
-                >
-                  Acessar Terminal
-                </Link>
+                <Link href={`/maquinas-virtuais/${id}/utilizar`} className={FORM.primaryBtn}>Abrir terminal</Link>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleStart}
-                  disabled={acting || isCreating}
-                  className="flex h-[39px] w-[225px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white disabled:opacity-60"
-                >
-                  {acting ? "Iniciando..." : isCreating ? "Criando VM..." : "Iniciar Máquina Virtual"}
+                <button type="button" onClick={handleStart} disabled={acting || isCreating} className={FORM.primaryBtn}>
+                  {acting ? "Ligando..." : isCreating ? "Criando..." : "Ligar máquina"}
                 </button>
               )}
             </div>
-          </>
-        )}
-
-        {!loading && !vm && !error && (
-          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">VM NÃO ENCONTRADA.</p>
-        )}
-
-        {!loading && error && (
-          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#B21D38]">{error.toUpperCase()}</p>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );

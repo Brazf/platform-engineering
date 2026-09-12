@@ -1,17 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { InternalBreadcrumb, InternalHeader } from "@/components";
-import { apiListVMs, type VM } from "@/lib/api";
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("pt-BR");
-  } catch {
-    return "-";
-  }
-}
+import Link from "next/link";
+import { FORM, InternalBreadcrumb, InternalHeader, PageNotice, ResourceCard } from "@/components";
+import { apiListVMs, VM_STATUS_LABEL, type VM } from "@/lib/api";
 
 export default function MaquinasVirtuaisPage() {
   const [vms, setVms] = useState<VM[]>([]);
@@ -19,10 +11,26 @@ export default function MaquinasVirtuaisPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiListVMs()
-      .then(setVms)
-      .catch(err => setError(err instanceof Error ? err.message : "Erro ao carregar VMs."))
-      .finally(() => setLoading(false));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await apiListVMs();
+        if (cancelled) return;
+        setVms(data);
+        setError("");
+        if (data.some((v) => v.status === "creating")) timer = setTimeout(load, 5000);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar VMs.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   return (
@@ -34,49 +42,36 @@ export default function MaquinasVirtuaisPage() {
           <InternalBreadcrumb label="Máquina Virtual" />
         </div>
 
-        <div className="flex h-[90px] items-start pb-8">
+        <div className="flex h-[90px] items-start justify-between pb-8">
           <h1 className="text-[41.8px] leading-none font-light text-black">Máquina Virtual</h1>
+          <Link href="/maquinas-virtuais/criar" className={FORM.primaryBtn}>Criar máquina virtual</Link>
         </div>
 
-        {loading && (
-          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">
-            CARREGANDO...
-          </p>
-        )}
+        <div className="mx-auto flex max-w-[1100px] flex-col gap-4">
+          {error && <PageNotice kind="error">{error}</PageNotice>}
+          {loading && <PageNotice kind="info">Carregando...</PageNotice>}
+          {!loading && !error && vms.length === 0 && (
+            <PageNotice kind="info">Você ainda não tem máquinas virtuais. Crie a primeira pelo botão acima.</PageNotice>
+          )}
 
-        {error && (
-          <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#B21D38]">
-            {error.toUpperCase()}
-          </p>
-        )}
-
-        <div className="flex flex-col gap-4">
           {vms.map((vm) => (
-            <Link
+            <ResourceCard
               key={vm.id}
               href={`/maquinas-virtuais/${vm.id}`}
-              className="block h-[130px] bg-white px-3 py-[25px] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]"
-            >
-              <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">NOME: {vm.name}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">SISTEMA: {vm.os_template}</p>
-              <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DATA DE CRIAÇÃO: {formatDate(vm.created_at)}</p>
-            </Link>
+              name={vm.name}
+              status={{ label: VM_STATUS_LABEL[vm.status], phase: vm.status }}
+              createdAt={vm.created_at}
+              fields={[
+                { label: "Sistema", value: vm.os_template },
+                { label: "Recursos", value: `${vm.cpu_cores} ${vm.cpu_cores === 1 ? "núcleo" : "núcleos"}, ${vm.memory_mb / 1024} GB` },
+                { label: "Disco", value: `${vm.disk_gb} GB${vm.require_gpu ? ", com GPU" : ""}` },
+              ]}
+            />
           ))}
-
-          {!loading && !error && vms.length === 0 && (
-            <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)]">
-              NENHUMA MÁQUINA VIRTUAL ENCONTRADA.
-            </p>
-          )}
         </div>
 
-        <div className="flex h-[71px] items-center justify-center py-4">
-          <Link
-            href="/maquinas-virtuais/criar"
-            className="flex h-[39px] w-[214px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
-          >
-            Criar Máquina Virtual
-          </Link>
+        <div className="flex items-center justify-center py-6">
+          <Link href="/pagina-inicial-usuario" className={FORM.outlineBtn}>Voltar</Link>
         </div>
       </main>
     </div>

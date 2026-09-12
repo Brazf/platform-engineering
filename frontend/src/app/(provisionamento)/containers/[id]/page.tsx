@@ -1,12 +1,57 @@
-import Link from "next/link";
-import { InternalBreadcrumb, InternalHeader } from "@/components";
+"use client";
 
-// Necessário para next build com output: "export" e rota dinâmica.
-export function generateStaticParams() {
-  return [];
-}
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { DetailHeader, FORM, Field, Group, InternalBreadcrumb, InternalHeader, PageNotice } from "@/components";
+import { apiDeleteContainer, apiGetContainer, STATUS_LABEL, type Container } from "@/lib/api";
 
 export default function ContainerDetalhePage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params?.id as string;
+  const [c, setC] = useState<Container | null>(null);
+  const [error, setError] = useState("");
+  const [showEnv, setShowEnv] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await apiGetContainer(id);
+        if (cancelled) return;
+        setC(data);
+        setError("");
+        if (data.status.phase === "pending") timer = setTimeout(load, 5000);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Erro ao carregar container.");
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [id]);
+
+  async function handleDelete() {
+    if (!confirm("Excluir este container? Os dados persistentes serão apagados.")) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await apiDeleteContainer(id);
+      router.push("/containers");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao excluir container.");
+      setDeleting(false);
+    }
+  }
+
+  const envKeys = c ? Object.keys(c.env ?? {}) : [];
+
   return (
     <div className="min-h-screen bg-[#F8F8F8]">
       <InternalHeader />
@@ -20,50 +65,68 @@ export default function ContainerDetalhePage() {
           <h1 className="text-[41.8px] leading-none font-light text-black">Container</h1>
         </div>
 
-        <section className="h-[137px] bg-white px-3 pt-2 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
-          <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">DETALHES</p>
-          <p className="mt-[10px] text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">NOME: CONTAINER DE DEPLOY</p>
-          <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DESCRIÇÃO: CRIADA PARA REALIZAR DEPLOY DE UM APP DE TESTES</p>
-          <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">DATA DE CRIAÇÃO: 20/02/2014</p>
-        </section>
+        <div className="mx-auto max-w-[1100px]">
+          {error && <PageNotice kind="error">{error}</PageNotice>}
+          {!c && !error && <PageNotice kind="info">Carregando...</PageNotice>}
 
-        <section className="mt-5 h-[157px] bg-white px-3 pt-2 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
-          <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">CONFIGURAÇÃO</p>
-          <p className="mt-[10px] text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">IMAGEM: NGINX:LATEST</p>
-          <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">PORTAS: 3000:80</p>
-          <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">VARIÁVEIS DE AMBIENTE: NODE_ENV=PROD</p>
-          <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">ARMAZENAMENTO PERSISTENTE: SIM</p>
-          <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">CONSOME GPU: NÃO</p>
-        </section>
+          {c && (
+            <section className="bg-white px-10 pt-7 pb-9 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+              <DetailHeader
+                name={c.name}
+                description={c.description}
+                status={{ label: STATUS_LABEL[c.status.phase], phase: c.status.phase, message: c.status.message }}
+              />
 
-        <section className="mt-5 h-[114px]">
-          <p className="text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#E52207]">ESTADO DO CONTAINER</p>
-          <div className="mt-[11px] border-t border-[#CCCCCC]" />
+              <div className="mt-7 flex flex-col gap-7">
+                <Group title="Configuração">
+                  <Field label="Imagem">{c.image}</Field>
+                  <Field label="Recursos">{c.cpu_millis / 1000} vCPU, {c.memory_mb >= 1024 ? `${c.memory_mb / 1024} GB` : `${c.memory_mb} MB`}</Field>
+                  <Field label="Porta">{c.port > 0 ? `${c.port} (${c.protocol.toUpperCase()})` : "não exposto"}</Field>
+                  <Field label="Armazenamento persistente">{c.persistent_gb > 0 ? `${c.persistent_gb} GB em ${c.mount_path}` : "não"}</Field>
+                  <Field label="Comando">{c.command || "padrão da imagem"}</Field>
+                  <Field label="Criado em">{new Date(c.created_at).toLocaleString("pt-BR")}</Field>
+                </Group>
 
-          <div className="flex h-[39px] items-center justify-between border-b border-[#CCCCCC] px-4">
-            <span className="text-[14px] leading-none text-[#1351B4]">EM EXECUÇÃO</span>
-            <span className="h-7 w-7 rounded-full bg-[#1FA433]" />
-          </div>
+                <Group title="Acesso">
+                  <Field label="Endereço externo">{c.external_url || "não exposto"}</Field>
+                  <Field label="Endereço interno">{c.internal_address || "—"}</Field>
+                </Group>
 
-          <div className="flex h-[39px] items-center justify-between px-4">
-            <span className="text-[14px] leading-none text-[#1351B4]">PARADO</span>
-            <span className="h-7 w-7 rounded-full bg-[#FA1D1D]" />
-          </div>
-        </section>
+                <Group title="Variáveis de ambiente">
+                  <div className="md:col-span-2">
+                    {envKeys.length === 0 ? (
+                      <p className={FORM.value}>nenhuma</p>
+                    ) : (
+                      <ul className="flex flex-col gap-1">
+                        {envKeys.map((k) => (
+                          <li key={k} className="text-[15px] leading-[22px] text-black break-all">
+                            <span className="font-mono">{k}</span>
+                            <span className="text-[#9A9A9A]"> = </span>
+                            <span className="font-mono">{showEnv ? c.env[k] : "••••••"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {envKeys.length > 0 && (
+                      <button type="button" className={FORM.linkBtn + " mt-3"} onClick={() => setShowEnv(!showEnv)}>
+                        {showEnv ? "Ocultar valores" : "Mostrar valores"}
+                      </button>
+                    )}
+                  </div>
+                </Group>
+              </div>
+            </section>
+          )}
 
-        <div className="flex h-[71px] items-center justify-center gap-2 py-4">
-          <Link
-            href="/containers"
-            className="flex h-[39px] w-[183px] items-center justify-center rounded-[20px] border border-[#B21D38] text-[16.8px] leading-none font-semibold text-[#B21D38]"
-          >
-            Excluir Container
-          </Link>
-          <Link
-            href="/containers/container-de-deploy/utilizar"
-            className="flex h-[39px] w-[178px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
-          >
-            Iniciar Container
-          </Link>
+          {c && (
+            <div className="flex flex-wrap items-center justify-center gap-3 py-6">
+              <Link href="/containers" className={FORM.outlineBtn}>Voltar</Link>
+              <button type="button" onClick={handleDelete} disabled={deleting} className={FORM.dangerBtn}>
+                {deleting ? "Excluindo..." : "Excluir container"}
+              </button>
+              <Link href={`/containers/${c.id}/utilizar`} className={FORM.primaryBtn}>Abrir terminal e logs</Link>
+            </div>
+          )}
         </div>
       </main>
     </div>

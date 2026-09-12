@@ -1,68 +1,211 @@
-import Link from "next/link";
-import { InternalCompactHeader } from "@/components";
+"use client";
 
-// Necessário para next build com output: "export" e rota dinâmica.
-export function generateStaticParams() {
-  return [];
-}
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { CONSOLE, FORM, InternalCompactHeader, STATUS_DOT } from "@/components";
+import { apiGetContainer, containerWsURL, STATUS_LABEL, type Container } from "@/lib/api";
+import "@xterm/xterm/css/xterm.css";
+
+type ConnState = "connecting" | "open" | "closed";
+const STATE_LABEL: Record<ConnState, string> = { connecting: "conectando...", open: "conectado", closed: "encerrado" };
 
 export default function UtilizarContainerPage() {
+  const params = useParams();
+  const id = params?.id as string;
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const [c, setC] = useState<Container | null>(null);
+  const [lines, setLines] = useState<string[]>([]);
+  const [termState, setTermState] = useState<ConnState>("connecting");
+  const [logState, setLogState] = useState<ConnState>("connecting");
+
+  useEffect(() => {
+    if (!id) return;
+    apiGetContainer(id).then(setC).catch(() => setC(null));
+  }, [id]);
+
+  // Terminal (exec no pod), mesmo ciclo de reconexão do terminal de VM.
+  useEffect(() => {
+    if (!terminalRef.current || !id) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let term: any = null;
+    let observer: ResizeObserver | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    async function init() {
+      const { Terminal } = await import("@xterm/xterm");
+      const { FitAddon } = await import("@xterm/addon-fit");
+      if (cancelled || !terminalRef.current) return;
+
+      term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        theme: { background: "#111111", foreground: "#f8f8f8", cursor: "#00E5FF", selectionBackground: "#1351B4" },
+        scrollback: 2000,
+      });
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(terminalRef.current);
+      fitAddon.fit();
+
+      const wsURL = containerWsURL(id, "terminal");
+      const MAX_RETRIES = 60;
+      let attempt = 0;
+
+      function connect() {
+        if (cancelled) return;
+        setTermState("connecting");
+        const ws = new WebSocket(wsURL);
+        wsRef.current = ws;
+        ws.binaryType = "arraybuffer";
+        ws.onopen = () => {
+          attempt = 0;
+          setTermState("open");
+          fitAddon.fit();
+          ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+        };
+        ws.onmessage = (evt: MessageEvent) => {
+          if (typeof evt.data === "string") term?.write(evt.data);
+          else term?.write(new Uint8Array(evt.data as ArrayBuffer));
+        };
+        ws.onclose = () => {
+          if (cancelled) return;
+          if (attempt >= MAX_RETRIES) {
+            setTermState("closed");
+            term?.writeln("\r\n\r\nConexão encerrada.");
+            return;
+          }
+          attempt += 1;
+          setTermState("connecting");
+          term?.writeln(`\r\n\r\nConexão perdida. Reconectando (${attempt})...`);
+          reconnectTimer = setTimeout(connect, 3000);
+        };
+        ws.onerror = () => { /* onclose cuida da reconexão */ };
+      }
+
+      term.onData((data: string) => {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(data);
+      });
+      term.onResize(({ cols, rows }: { cols: number; rows: number }) => {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "resize", cols, rows }));
+      });
+
+      connect();
+      observer = new ResizeObserver(() => fitAddon.fit());
+      observer.observe(terminalRef.current);
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+      wsRef.current = null;
+      observer?.disconnect();
+      term?.dispose();
+    };
+  }, [id]);
+
+  // Logs em tempo real (só leitura).
+  useEffect(() => {
+    if (!id) return;
+    let ws: WebSocket | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    let attempt = 0;
+
+    function connect() {
+      if (cancelled) return;
+      setLogState("connecting");
+      ws = new WebSocket(containerWsURL(id, "logs"));
+      ws.onopen = () => { attempt = 0; setLogState("open"); };
+      ws.onmessage = (evt: MessageEvent) => setLines((l) => [...l.slice(-1999), String(evt.data)]);
+      ws.onclose = () => {
+        if (cancelled) return;
+        if (attempt >= 60) { setLogState("closed"); return; }
+        attempt += 1;
+        timer = setTimeout(connect, 3000);
+      };
+    }
+    connect();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      ws?.close();
+    };
+  }, [id]);
+
+  useEffect(() => {
+    logRef.current?.scrollTo(0, logRef.current.scrollHeight);
+  }, [lines]);
+
+  const envKeys = c ? Object.keys(c.env ?? {}) : [];
+
   return (
-    <div className="min-h-screen bg-[#F8F8F8]">
+    <div className="flex h-screen flex-col bg-[#F8F8F8]">
       <InternalCompactHeader />
 
-      <main className="w-full">
-        <div className="flex gap-[6px] px-[7px] pt-[9px]">
-          <section className="h-[641px] w-[321px] bg-white px-4 pt-[19px] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
-            <h1 className="text-center text-[16.8px] leading-none font-semibold text-black">CONTAINER DE DEPLOY</h1>
-            <h2 className="mt-6 text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">RECURSOS DA MÁQUINA</h2>
+      <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:flex-row">
+        <aside className="shrink-0 overflow-y-auto bg-white px-5 py-4 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)] lg:w-[320px]">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="truncate text-[20px] leading-none font-semibold text-black">{c?.name ?? "Container"}</h1>
+            {c && (
+              <span className="flex shrink-0 items-center gap-2 text-[11px] font-bold tracking-[1px] text-[#555] uppercase">
+                {STATUS_LABEL[c.status.phase]}
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: STATUS_DOT[c.status.phase] }} />
+              </span>
+            )}
+          </div>
+          {c?.description && <p className="mt-1 text-[14px] leading-[20px] text-[#6B6B6B]">{c.description}</p>}
 
-            <div className="mt-6">
-              <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">CPU</p>
-              <div className="mt-3 h-4 rounded-[4px] bg-[#CCCCCC]"><div className="h-4 w-[58px] rounded-[4px] bg-[#22B14C]" /></div>
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 lg:grid-cols-1">
+            <div><p className={CONSOLE.label}>Imagem</p><p className={CONSOLE.value}>{c?.image ?? "—"}</p></div>
+            <div>
+              <p className={CONSOLE.label}>Recursos</p>
+              <p className={CONSOLE.value}>{c ? `${c.cpu_millis / 1000} vCPU, ${c.memory_mb >= 1024 ? `${c.memory_mb / 1024} GB` : `${c.memory_mb} MB`}` : "—"}</p>
             </div>
-
-            <div className="mt-5">
-              <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">MEMÓRIA</p>
-              <div className="mt-3 h-4 rounded-[4px] bg-[#CCCCCC]"><div className="h-4 w-[187px] rounded-[4px] bg-[#22B14C]" /></div>
+            <div><p className={CONSOLE.label}>Armazenamento</p><p className={CONSOLE.value}>{c ? (c.persistent_gb > 0 ? `${c.persistent_gb} GB em ${c.mount_path}` : "sem volume") : "—"}</p></div>
+            <div><p className={CONSOLE.label}>Endereço externo</p><p className={CONSOLE.value}>{c?.external_url || "não exposto"}</p></div>
+            <div><p className={CONSOLE.label}>Endereço interno</p><p className={CONSOLE.value}>{c?.internal_address || "—"}</p></div>
+            <div className="col-span-2 lg:col-span-1">
+              <p className={CONSOLE.label}>Variáveis de ambiente</p>
+              {envKeys.length === 0 ? (
+                <p className={CONSOLE.value}>nenhuma</p>
+              ) : (
+                <ul className="mt-[2px] flex flex-col gap-[2px]">
+                  {envKeys.map((k) => (
+                    <li key={k} className="text-[14px] leading-[20px] text-black break-all">
+                      <span className="font-mono">{k}</span> <span className="text-[#9A9A9A]">••••</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
+          </div>
 
-            <div className="mt-5">
-              <p className="text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">ARMAZENAMENTO</p>
-              <div className="mt-3 h-4 rounded-[4px] bg-[#CCCCCC]"><div className="h-4 w-[111px] rounded-[4px] bg-[#22B14C]" /></div>
-            </div>
+          <Link href={`/containers/${id}`} className={FORM.outlineBtn + " mt-6 h-10 text-[15px]"}>Voltar aos detalhes</Link>
+        </aside>
 
-            <h2 className="mt-10 text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">VARIÁVEIS DE AMBIENTE</h2>
-            <p className="mt-4 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">NODE_ENV: PROD</p>
-            <p className="mt-2 text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase">PORT: 3000</p>
-
-            <h2 className="mt-8 text-center text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">ENDPOINT</h2>
-            <p className="mt-4 text-center text-[16.8px] leading-[23px] font-normal text-black">http://localhost:3000</p>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <section className="flex min-h-[260px] flex-[3] flex-col overflow-hidden bg-[#111111] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+            <div className={CONSOLE.panelHead}><span>Terminal</span><span className={CONSOLE.panelState}>{STATE_LABEL[termState]}</span></div>
+            <div ref={terminalRef} className="min-h-0 flex-1 p-1" />
           </section>
 
-          <section className="h-[641px] w-[937px] bg-black/90 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
-            <div className="h-[45px] bg-[#E5E5E5] px-[17px] py-[11px] text-[33px] leading-[23px] text-black">Logs do Container</div>
-            <div className="px-[22px] pt-5 text-white">
-              <p className="text-[16.8px] leading-[normal]">[2026-02-14 23:53:01] INFO entrypoint.sh: Configuration complete; ready for start up</p>
-              <p className="mt-2 text-[16.8px] leading-[normal]">[2026-02-14 23:53:02] READY nginx/1.25.3 started on 0.0.0.0:80</p>
-              <p className="mt-2 text-[16.8px] leading-[normal]">[2026-02-14 23:53:10] GET / 200 OK - Mozilla/5.0 (Windows NT 10.0)</p>
+          <section className="flex min-h-[160px] flex-[2] flex-col overflow-hidden bg-[#1A1A1A] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+            <div className={CONSOLE.panelHead}><span>Logs</span><span className={CONSOLE.panelState}>{STATE_LABEL[logState]}</span></div>
+            <div ref={logRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-2 font-mono text-[13px] leading-[19px] text-[#E6E6E6]">
+              {lines.length === 0 && <p className="text-[#8A8A8A]">Sem saída ainda. As linhas aparecem aqui assim que o container escrever algo.</p>}
+              {lines.map((l, i) => <p key={i} className="whitespace-pre-wrap break-all">{l}</p>)}
             </div>
           </section>
-        </div>
-
-        <div className="flex h-[71px] items-center justify-center gap-2 py-4">
-          <Link
-            href="/containers/container-de-deploy"
-            className="flex h-[39px] w-[231px] items-center justify-center rounded-[20px] border border-[#B21D38] text-[16.8px] leading-none font-semibold text-[#B21D38]"
-          >
-            Reiniciar Container
-          </Link>
-          <Link
-            href="/containers"
-            className="flex h-[39px] w-[230px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
-          >
-            Desligar Container
-          </Link>
         </div>
       </main>
     </div>

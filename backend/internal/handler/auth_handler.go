@@ -29,9 +29,10 @@ type loginRequest struct {
 
 // Register godoc
 //
-// POST /api/auth/register
+// POST /api/users  (exige Bearer de um usuário com role "pesquisador")
 // Body:   { "email": "joao@ifpe.edu.br", "password": "senha1234", "role": "aluno" }
 // 201:    { "id": "3fa85f64-...", "email": "joao@ifpe.edu.br", "role": "aluno" }
+// 401/403: sem token ou perfil sem permissão (middleware)
 // 400:    { "error": "Key: 'registerRequest.Email' Error:Field validation for 'Email' failed..." }
 // 409:    { "error": "email já está em uso" }
 // 422:    { "error": "perfil inválido: use 'aluno' ou 'pesquisador'" }

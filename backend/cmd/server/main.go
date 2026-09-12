@@ -5,12 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/proxlab/backend/internal/config"
+	domainrepo "github.com/proxlab/backend/internal/domain/repository"
 	"github.com/proxlab/backend/internal/handler"
+	"github.com/proxlab/backend/internal/kube"
 	"github.com/proxlab/backend/internal/middleware"
 	"github.com/proxlab/backend/internal/proxmox"
 	"github.com/proxlab/backend/internal/repository"
+	"github.com/proxlab/backend/internal/terraform"
 	"github.com/proxlab/backend/internal/usecase"
 	wshandler "github.com/proxlab/backend/internal/websocket"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -29,14 +34,29 @@ func main() {
 	// 3. Dependências (repositórios → use cases → handlers)
 	userRepo := repository.NewUserRepository(db)
 	vmRepo := repository.NewVMRepository(db)
+	containerRepo := repository.NewContainerRepository(db)
 
 	proxmoxClient := proxmox.NewProxmoxClient(cfg)
+	provisioner, err := terraform.NewRunner(cfg)
+	if err != nil {
+		log.Fatalf("erro ao iniciar terraform runner: %v", err)
+	}
+	var containerRuntime domainrepo.ContainerRuntime
+	if rt, err := kube.New(cfg.KubeconfigPath); err != nil {
+		log.Printf("[kube] cluster de containers indisponível (%v); rotas de containers responderão 503", err)
+	} else {
+		containerRuntime = rt
+	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
-	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient)
+	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID)
+	containerUC := usecase.NewContainerUseCase(containerRepo, containerRuntime, cfg.IngressDomain, cfg.K3SNodeHost())
 
 	authH := handler.NewAuthHandler(authUC)
 	vmH := handler.NewVMHandler(vmUC)
+	containerH := handler.NewContainerHandler(containerUC)
+	containerTermH := wshandler.NewContainerTerminalHandler(containerUC, containerRuntime)
+	containerLogsH := wshandler.NewContainerLogsHandler(containerUC, containerRuntime)
 	terminalH := wshandler.NewTerminalHandler(
 		proxmoxClient, vmRepo,
 		proxmoxClient.WsBase(),
@@ -48,15 +68,21 @@ func main() {
 	r := gin.Default()
 	r.Use(middleware.CORS())
 
+	// Documentação (Swagger UI servindo docs/swagger.yaml escrito à mão)
+	r.StaticFile("/docs/swagger.yaml", "./docs/swagger.yaml")
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/docs/swagger.yaml")))
+
 	public := r.Group("/api/auth")
 	{
 		public.POST("/login", authH.Login)
-		public.POST("/register", authH.Register)
 	}
 
 	protected := r.Group("/api")
 	protected.Use(middleware.Auth(cfg.JWTSecret))
 	{
+		// Cadastro de usuários: só pesquisadores criam contas (alunos concluem no primeiro acesso).
+		protected.POST("/users", middleware.RequireRole("pesquisador"), authH.Register)
+
 		vms := protected.Group("/vms")
 		{
 			vms.POST("", vmH.Create)
@@ -64,8 +90,19 @@ func main() {
 			vms.GET("/:id", vmH.Get)
 			vms.POST("/:id/start", vmH.Start)
 			vms.POST("/:id/stop", vmH.Stop)
+			vms.POST("/:id/reboot", vmH.Reboot)
 			vms.DELETE("/:id", vmH.Delete)
 			vms.GET("/:id/terminal", terminalH.HandleTerminal)
+		}
+		containers := protected.Group("/containers")
+		{
+			containers.GET("/catalog", containerH.Catalog)
+			containers.POST("", containerH.Create)
+			containers.GET("", containerH.List)
+			containers.GET("/:id", containerH.Get)
+			containers.DELETE("/:id", containerH.Delete)
+			containers.GET("/:id/terminal", containerTermH.Handle)
+			containers.GET("/:id/logs", containerLogsH.Handle)
 		}
 	}
 

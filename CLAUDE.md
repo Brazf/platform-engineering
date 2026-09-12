@@ -18,35 +18,61 @@ backend/
 │   ├── handler/                # controllers HTTP (Gin)
 │   ├── repository/             # implementações GORM
 │   ├── middleware/             # JWT, CORS
-│   ├── proxmox/                # cliente API Proxmox
-│   └── websocket/              # proxy terminal VMs
+│   ├── proxmox/                # cliente REST Proxmox (status/start/stop/termproxy)
+│   ├── terraform/              # Provisioner: gera main.tf e roda terraform-exec
+│   ├── kube/                   # ContainerRuntime: client-go contra o k3s (apply/status/exec/logs)
+│   ├── k3s/                    # bootstrap do cluster: chave SSH, instala k3s, kubeconfig
+│   └── websocket/              # proxy terminal VMs + terminal/logs de containers
+├── cmd/k3s-bootstrap/          # cria a VM k3s-server e instala o k3s (roda uma vez)
 └── migrations/
 ```
 
 ## Fluxo obrigatório
 Handler → UseCase → Repository Interface → GORM → PostgreSQL
-Handler → UseCase → ProxmoxClient Interface → Proxmox API
+Handler → UseCase → Provisioner Interface → terraform-exec (provider bpg/proxmox) → Proxmox   (criar/destruir VM)
+Handler → UseCase → ProxmoxClient Interface → Proxmox API REST                                (status/start/stop/terminal)
+Handler → UseCase → ContainerRuntime Interface → client-go → k3s                              (containers)
 
 ## Proxmox
 - Auth: API Token via header `Authorization: PVEAPIToken=<id>=<secret>`
 - TLS: `InsecureSkipVerify: true`
 - Node: `pve01`
 - Env: `PROXMOX_HOST`, `PROXMOX_NODE`, `PROXMOX_TOKEN_ID`, `PROXMOX_TOKEN_SECRET`
-- WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`
+- WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`; protocolo: 1ª mensagem `"<user>:<ticket>\n"` → resposta `OK`; entrada do teclado enquadrada `0:<len>:<dados>`, resize `1:cols:rows:`, ping `2` a cada 30s. Sem o handshake o Proxmox falha com `failed reading ticket: timed out`
+- Provisionamento: Terraform `bpg/proxmox ~> 0.112.0`; um workspace por VM em `$TERRAFORM_WORKDIR/<vm-uuid>`; credenciais só via env do processo (`PROXMOX_VE_ENDPOINT`, `PROXMOX_VE_API_TOKEN`, `PROXMOX_VE_INSECURE`)
+- Env Terraform: `TERRAFORM_BIN`, `TERRAFORM_WORKDIR`
+- VMs Ubuntu: clone completo do template cloud-init `PROXMOX_UBUNTU_TEMPLATE_VMID` (default 9000, `ubuntu-2404-cloud`); nascem ligadas, com usuário `ubuntu` e senha gerada por VM, devolvida uma única vez em `credentials` no `201` de `POST /api/vms` (não persistida). Outros SOs seguem o fluxo de VM vazia.
+- VMs criadas antes da migração não têm workspace: ao deletar, só o registro sai do banco; a VM é removida manualmente no Proxmox
+- Containers: cluster k3s single-node na VM `k3s-server` (criada por `cmd/k3s-bootstrap`, IP fixo `K3S_NODE_IP`). Backend fala com o cluster via `internal/kube` (client-go v0.35, kubeconfig em `KUBECONFIG_PATH`; ausente → rotas de containers respondem 503). Namespace por usuário `u-<8 chars>`, quota por perfil, status lido do cluster a cada request (sem coluna no banco). HTTP + `INGRESS_DOMAIN` → Ingress `http://<nome>-<ns>.<domínio>`; TCP ou sem domínio → NodePort 30000–32767 em `K3S_NODE_IP`; porta 0 = só terminal.
+- Env k3s: `K3S_NODE_IP`, `K3S_NODE_GATEWAY`, `K3S_NODE_CPU`, `K3S_NODE_MEMORY_MB`, `K3S_NODE_DISK_GB`, `INGRESS_DOMAIN`, `KUBECONFIG_PATH`
+- Smoke tests: `go run ./cmd/proxmox-check` (VM) e `go run ./cmd/proxmox-check --k3s` (container no cluster real)
 
 ## Autenticação
+- Cadastro de usuários: sem auto-cadastro. `POST /api/users` exige JWT de `pesquisador`. Alunos concluem o cadastro no primeiro acesso com código por e-mail (parte 2 pendente; spec `docs/superpowers/specs/2026-09-11-cadastro-usuarios-fluxo.md`). Primeiro pesquisador nasce por SQL/seed.
 - JWT salvo no localStorage com chave `"token"`
 - Todas as rotas /api/* exigem `Authorization: Bearer <token>`
 - WebSocket aceita `?token=` como query param
 - 401 → redirecionar para /login
 
 ## Regras
-- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend
+- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceção acordada: `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
 - Sempre: `if err != nil`, `context.Context` em I/O, validar payload nos handlers, UUIDs como PK
 
 ## Fases
 1. Auth JWT + usuários ← ✅ concluído
 2. CRUD de VMs no Proxmox ← ✅ concluído
 3. Terminal web (xterm.js + WebSocket) ← ✅ concluído
-4. Integração frontend ↔ backend (VMs) ← **atual**
-5. Containers LXC (futura)
+4. Integração frontend ↔ backend (VMs) ← ✅ concluído (fluxo principal; ajustes pontuais ainda surgirão)
+5. Migração do provisionamento para Terraform ← ✅ concluído
+6. Containers de aplicação em k3s ← ✅ concluído (v1): cluster `k3s-server` (VMID 103, 172.26.3.250) no ar, smoke `--k3s` verde em 2026-09-11
+
+## Pendências
+- [x] **Migrar provisionamento de recursos para Terraform**: o backend deixou de criar/destruir VMs via API REST do Proxmox e passou a gerar/aplicar configuração Terraform (`internal/terraform/`, provider `bpg/proxmox`). Spec: `docs/superpowers/specs/2026-09-07-terraform-provisioning-design.md`.
+- [x] **Fase containers (k3s) — código**: spec `docs/superpowers/specs/2026-09-10-containers-k3s-design.md`, plano `docs/superpowers/plans/2026-09-10-containers-k3s.md`. Backend (`internal/kube`, `internal/k3s`, usecase, API, WebSocket) e frontend (`/containers/*`) implementados com testes.
+- [x] **Fase containers — bootstrap e smoke**: `k3s-server` criado no pool `researchers` (`K3S_NODE_POOL`), PodSecurity ajustado para `baseline`. Da VPN só a porta 22 passa: testar do notebook exige túnel SSH para 6443 (ver spec, "Desvios registrados").
+- [x] **Fase containers — ponta a ponta pelo front** (2026-09-11): ubuntu (terminal) e postgres (env, volume, TCP/NodePort, logs, psql) criados, usados e excluídos pelo front. Só o acesso externo `ip:porta` não foi testado (VPN bloqueia); validar quando o backend rodar na VM do laboratório.
+- [ ] **Verificar fluxo de VMs Ubuntu**: o provider bpg só manda `pool` no clone quando `pool_id` está definido; se o front não mandar pool, o token recebe 403. Confirmar que `POST /api/vms` ainda funciona.
+- [ ] **Cadastro por convite — parte 2** (spec `docs/superpowers/specs/2026-09-11-cadastro-usuarios-fluxo.md`): status/código de ativação no `User`, e-mail SMTP, `POST /api/auth/first-access`, tela `/primeiro-acesso` real, remover `/cadastro` público, `/cadastrar-usuario` sem senha.
+- [ ] **Perfil do usuário — parte 3** (mesma spec): tela "Meu perfil" para alterar nome e senha (senha atual obrigatória); e-mail somente leitura. `GET/PATCH /api/me`, `PUT /api/me/password`, coluna `name`.
+- [ ] **Usuários cadastrados — parte 4** (mesma spec): card na página inicial só para pesquisador → `/usuarios` lista alunos e pesquisadores; pesquisador só pode alterar e-mail ou excluir; **excluir usuário apaga todas as VMs e containers dele** (deprovisiona antes de remover). `GET/PATCH/DELETE /api/users[/:id]` com RequireRole("pesquisador").
+- [ ] **Containers v2**: start/stop/restart, build por Dockerfile/tarball (kaniko), TLS no Ingress, GPU.

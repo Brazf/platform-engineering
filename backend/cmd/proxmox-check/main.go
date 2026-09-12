@@ -1,154 +1,145 @@
-// Ferramenta de diagnóstico de conectividade com o Proxmox VE.
-// Uso: go run ./cmd/proxmox-check  (requer .env com variáveis PROXMOX_*)
+// Smoke test do provisionamento via Terraform contra o Proxmox real.
+// Cria UMA VM de teste (proxlab-smoke-<sufixo>), consulta o status via REST
+// e a destrói. Nunca toca em VMs existentes.
+//
+// Uso: go run ./cmd/proxmox-check  (requer .env com PROXMOX_* e opcionalmente TERRAFORM_*)
+//
+// Modo --k3s: cria um container nginx no cluster k3s real (namespace u-smoke00),
+// espera running, lê logs e apaga. Requer KUBECONFIG_PATH gerado pelo k3s-bootstrap.
 package main
 
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/joho/godotenv"
+	"github.com/google/uuid"
 	"github.com/proxlab/backend/internal/config"
+	"github.com/proxlab/backend/internal/domain/entity"
+	"github.com/proxlab/backend/internal/domain/repository"
+	"github.com/proxlab/backend/internal/kube"
 	"github.com/proxlab/backend/internal/proxmox"
+	"github.com/proxlab/backend/internal/terraform"
 )
 
 func main() {
-	_ = godotenv.Load()
-
-	cfg := &config.Config{
-		ProxmoxHost:        mustEnv("PROXMOX_HOST"),
-		ProxmoxNode:        getEnv("PROXMOX_NODE", "pve"),
-		ProxmoxTokenID:     mustEnv("PROXMOX_TOKEN_ID"),
-		ProxmoxTokenSecret: mustEnv("PROXMOX_TOKEN_SECRET"),
+	cfg, err := config.Load()
+	if err != nil {
+		fatalf("configuração: %v", err)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "--k3s" {
+		smokeK3s(cfg)
+		return
+	}
+	if os.Getenv("TERRAFORM_WORKDIR") == "" {
+		cfg.TerraformWorkdir = filepath.Join(os.TempDir(), "proxlab-smoke")
 	}
 
-	fmt.Printf("🔌 Conectando a %s (nó: %s)...\n\n", cfg.ProxmoxHost, cfg.ProxmoxNode)
+	fmt.Printf("Proxmox %s (nó %s) · terraform=%s · workdir=%s\n\n",
+		cfg.ProxmoxHost, cfg.ProxmoxNode, cfg.TerraformBin, cfg.TerraformWorkdir)
 
+	runner, err := terraform.NewRunner(cfg)
+	if err != nil {
+		fatalf("runner: %v", err)
+	}
 	client := proxmox.NewProxmoxClient(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// --- Teste 1: listar VMs ---
-	fmt.Println("▶ Teste 1 — ListVMs")
-	vms, err := client.ListVMs(ctx)
-	if err != nil {
-		fatalf("ListVMs: %v", err)
-	}
-	fmt.Printf("  ✅ %d VM(s) no nó\n", len(vms))
-	for _, vm := range vms {
-		fmt.Printf("     VMID=%-4d  status=%-8s  name=%s\n", vm.VMID, vm.Status, vm.Name)
-	}
-	fmt.Println()
-
-	// --- Teste 2: GetVMStatus da primeira VM ---
-	if len(vms) > 0 {
-		first := vms[0]
-		fmt.Printf("▶ Teste 2 — GetVMStatus(VMID=%d)\n", first.VMID)
-		status, err := client.GetVMStatus(ctx, first.VMID)
-		if err != nil {
-			fmt.Printf("  ❌ %v\n\n", err)
-		} else {
-			fmt.Printf("  ✅ status=%s  cpu=%.2f%%  mem=%dMB/%dMB  uptime=%ds\n\n",
-				status.Status, status.CPU*100,
-				status.MemUsed/1024/1024, status.MemMax/1024/1024,
-				status.Uptime)
-		}
-	}
-
-	// --- Teste 3: CreateVM com VM mínima ---
-	fmt.Println("▶ Teste 3 — CreateVM (VM mínima de teste)")
-	createReq := proxmox.VMCreateRequest{
-		VMID:     0, // auto via /cluster/nextid
-		Name:     "proxlab-test-delete-me",
+	id := uuid.New()
+	spec := repository.VMSpec{
+		Name:     "proxlab-smoke-" + id.String()[:8],
 		CPUCores: 1,
 		MemoryMB: 512,
-		DiskGB:   10,
-		Storage:  "local-lvm",
+		DiskGB:   4,
 		OSType:   "l26",
-		Network:  "virtio,bridge=vmbr0",
+		Tags:     []string{"proxlab", "smoke-test"},
 	}
-	vmid, taskID, err := client.CreateVM(ctx, createReq)
+
+	fmt.Printf("▶ 1/3 Provision (%s)\n", spec.Name)
+	vmid, err := runner.Provision(ctx, id, spec)
 	if err != nil {
-		fmt.Printf("  ❌ CreateVM falhou: %v\n\n", err)
-		fmt.Println("  ℹ️  Tentando com storage 'local'...")
-
-		createReq.Storage = "local"
-		vmid, taskID, err = client.CreateVM(ctx, createReq)
-		if err != nil {
-			fmt.Printf("  ❌ CreateVM com 'local' também falhou: %v\n\n", err)
-			fmt.Println("Diagnóstico concluído (criação não funcionou).")
-			os.Exit(1)
-		}
+		fatalf("Provision: %v", err)
 	}
-	fmt.Printf("  ✅ VM criada — VMID=%d  taskID=%s\n", vmid, taskID)
+	fmt.Printf("  ok — VMID=%d workspace=%s\n\n", vmid, id)
 
-	// Aguarda a tarefa de criação completar (máx 20s)
-	fmt.Println("  ⏳ Aguardando task de criação...")
-	taskDone := waitTask(ctx, client, taskID, 20*time.Second)
-	if !taskDone {
-		fmt.Println("  ⚠️  Task ainda em andamento após 20s — verificando assim mesmo")
-	}
-	fmt.Println()
-
-	// --- Teste 4: verificar VM criada aparece na listagem ---
-	fmt.Printf("▶ Teste 4 — GetVMStatus(VMID=%d) após criação\n", vmid)
+	fmt.Printf("▶ 2/3 GetVMStatus(%d) via REST\n", vmid)
 	status, err := client.GetVMStatus(ctx, vmid)
 	if err != nil {
-		fmt.Printf("  ❌ GetVMStatus falhou: %v\n\n", err)
+		fmt.Printf("  falhou: %v (seguindo para destroy)\n\n", err)
 	} else {
-		fmt.Printf("  ✅ status=%s  name=%s\n\n", status.Status, status.Name)
+		fmt.Printf("  ok — status=%s name=%s\n\n", status.Status, status.Name)
 	}
 
-	// --- Teste 5: deletar a VM de teste ---
-	fmt.Printf("▶ Teste 5 — DeleteVM(VMID=%d)\n", vmid)
-	if err := client.DeleteVM(ctx, vmid); err != nil {
-		fmt.Printf("  ❌ DeleteVM falhou: %v\n", err)
-		fmt.Printf("  ⚠️  VM VMID=%d precisa ser removida manualmente!\n\n", vmid)
-	} else {
-		fmt.Printf("  ✅ VM %d deletada com sucesso\n\n", vmid)
+	fmt.Printf("▶ 3/3 Deprovision(%s)\n", id)
+	if err := runner.Deprovision(ctx, id); err != nil {
+		fatalf("Deprovision: %v — VMID=%d precisa ser removida manualmente!", err, vmid)
 	}
-
-	fmt.Println("Diagnóstico concluído.")
+	fmt.Println("  ok — VM destruída e workspace removido")
+	fmt.Println("\nSmoke test concluído.")
 }
 
-// waitTask aguarda uma task assíncrona do Proxmox completar.
-func waitTask(ctx context.Context, client *proxmox.ProxmoxClient, upid string, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		ts, err := client.GetTaskStatus(ctx, upid)
-		if err != nil {
-			return false
-		}
-		if ts.Status == "stopped" {
-			if ts.ExitStatus == "OK" {
-				fmt.Printf("  ✅ Task concluída com sucesso\n")
-			} else {
-				fmt.Printf("  ❌ Task falhou: %s\n", ts.ExitStatus)
-			}
-			return true
-		}
-		time.Sleep(2 * time.Second)
+// smokeK3s cria um container nginx do catálogo no cluster real, espera running,
+// lê logs e apaga. Só toca em recursos criados aqui (namespace u-smoke00).
+func smokeK3s(cfg *config.Config) {
+	rt, err := kube.New(cfg.KubeconfigPath)
+	if err != nil {
+		fatalf("kube: %v", err)
 	}
-	return false
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	ns := "u-smoke00"
+	img, _ := entity.CatalogByKey("nginx")
+	c := &entity.Container{
+		ID: uuid.New(), UserID: uuid.New(), Name: "smoke-" + uuid.New().String()[:6], Image: img.Image,
+		CPUMillis: 250, MemoryMB: 128, Port: img.Port, Protocol: img.Protocol, NodePort: 32000,
+		Env: entity.EnvMap{}, Namespace: ns,
+	}
+	fmt.Printf("▶ 1/4 EnsureNamespace(%s)\n", ns)
+	if err := rt.EnsureNamespace(ctx, ns, repository.ResourceQuotaSpec{CPUMillis: 2000, MemoryMB: 4096, Pods: 5, StorageGB: 20}); err != nil {
+		fatalf("EnsureNamespace: %v", err)
+	}
+	fmt.Printf("▶ 2/4 Apply(%s)\n", c.Name)
+	if err := rt.Apply(ctx, c, cfg.IngressDomain); err != nil {
+		fatalf("Apply: %v", err)
+	}
+	fmt.Println("▶ 3/4 Aguardando running (limpa o container ao falhar)")
+	for {
+		st, err := rt.Status(ctx, ns, []string{c.Name})
+		if err != nil {
+			_ = rt.Delete(context.Background(), ns, c.Name)
+			fatalf("Status: %v", err)
+		}
+		fmt.Printf("  %s %s\n", st[c.Name].Phase, st[c.Name].Message)
+		if st[c.Name].Phase == repository.PhaseRunning {
+			break
+		}
+		if st[c.Name].Phase == repository.PhaseFailed {
+			_ = rt.Delete(ctx, ns, c.Name)
+			fatalf("container falhou")
+		}
+		time.Sleep(3 * time.Second)
+	}
+	rc, err := rt.Logs(ctx, ns, c.Name, false)
+	if err != nil {
+		fatalf("Logs: %v", err)
+	}
+	b, _ := io.ReadAll(rc)
+	rc.Close()
+	fmt.Printf("  logs (%d bytes) ok\n", len(b))
+	fmt.Printf("▶ 4/4 Delete — testar antes: curl http://%s:32000\n", cfg.K3SNodeHost())
+	if err := rt.Delete(ctx, ns, c.Name); err != nil {
+		fatalf("Delete: %v", err)
+	}
+	fmt.Println("Smoke k3s concluído.")
 }
 
 func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "ERRO: "+format+"\n", args...)
 	os.Exit(1)
-}
-
-func mustEnv(key string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		fatalf("variável obrigatória ausente: %s", key)
-	}
-	return v
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

@@ -1,24 +1,22 @@
 package websocket
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/proxlab/backend/internal/domain/repository"
-	"github.com/proxlab/backend/internal/middleware"
 )
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
 
 // TerminalHandler gerencia conexões WebSocket de terminal para VMs.
 type TerminalHandler struct {
@@ -50,7 +48,8 @@ func NewTerminalHandler(
 //  1. POST /nodes/{node}/qemu/{vmid}/termproxy → { ticket, port }
 //  2. Dial wss://proxmox:8006/api2/json/nodes/{node}/qemu/{vmid}/vncwebsocket?port={port}&vncticket={ticket}
 //     com Authorization: PVEAPIToken=... e Subprotocols: binary
-//  3. Proxy bidirecional direto — ticket já está nos query params, não enviar como mensagem
+//  3. Handshake: envia "<user>:<ticket>\n" e espera "OK" (o termproxy exige isso além dos query params)
+//  4. Proxy bidirecional — entrada do cliente enquadrada como "0:<len>:<dados>"; ping "2" a cada 30s
 //
 // GET /api/vms/:id/terminal?token=<jwt>
 func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
@@ -60,10 +59,8 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		return
 	}
 
-	rawUserID, _ := c.Get(middleware.ContextKeyUserID)
-	userIDStr, _ := rawUserID.(string)
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
+	userID, ok := userFromContext(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
@@ -129,17 +126,64 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 	}
 	defer proxmoxConn.Close()
 
+	// Escritas serializadas (gorilla/websocket permite um escritor por vez — aqui
+	// escrevem o teclado, o Enter automático e o ping) e com prazo: se o Proxmox
+	// derrubar o console sem fechar o TCP (ex.: reboot), a próxima escrita falha.
+	var writeMu sync.Mutex
+	writeProxmox := func(data []byte) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_ = proxmoxConn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		return proxmoxConn.WriteMessage(websocket.BinaryMessage, data)
+	}
+
 	log.Printf("[terminal] conexão estabelecida com vncwebsocket vmid=%d", vm.ProxmoxVMID)
 
-	// Proxy bidirecional
+	// Passo 3: handshake do termproxy — primeira mensagem é "<user>:<ticket>\n";
+	// o servidor responde "OK" e só então começa a repassar o console.
+	handshake := fmt.Sprintf("%s:%s\n", termProxy.User, termProxy.Ticket)
+	if err := writeProxmox([]byte(handshake)); err != nil {
+		log.Printf("[terminal] falha ao enviar handshake: %v", err)
+		return
+	}
+	_, ack, err := proxmoxConn.ReadMessage()
+	if err != nil || !strings.HasPrefix(string(ack), "OK") {
+		log.Printf("[terminal] handshake rejeitado pelo termproxy vmid=%d: err=%v resp=%q", vm.ProxmoxVMID, err, ack)
+		_ = clientConn.WriteMessage(websocket.TextMessage, []byte("\r\nErro de autenticação no console da VM.\r\n"))
+		return
+	}
+	log.Printf("[terminal] handshake OK vmid=%d", vm.ProxmoxVMID)
+	// Dados do console podem vir colados ao "OK" no mesmo frame.
+	if rest := ack[2:]; len(rest) > 0 {
+		_ = clientConn.WriteMessage(websocket.BinaryMessage, rest)
+	}
+
+	// Tamanho inicial do terminal; o front não envia resize.
+	_ = writeProxmox([]byte("1:80:24:"))
+
+	// Proxy bidirecional. Proxmox → cliente: bytes crus.
+	// Cliente → Proxmox: enquadrado como "0:<tamanho>:<dados>", conforme protocolo do termproxy.
 	errc := make(chan error, 2)
+	var promptReady atomic.Bool
 
 	go func() {
+		// O console serial fragmenta a saída em pedaços pequenos; "login:" pode
+		// vir dividido entre mensagens, então a busca usa uma janela dos últimos bytes.
+		var tail []byte
 		for {
 			mt, msg, err := proxmoxConn.ReadMessage()
 			if err != nil {
 				errc <- err
 				return
+			}
+			if !promptReady.Load() {
+				tail = append(tail, msg...)
+				if len(tail) > 256 {
+					tail = tail[len(tail)-256:]
+				}
+				if bytes.Contains(tail, []byte("login:")) {
+					promptReady.Store(true)
+				}
 			}
 			if err := clientConn.WriteMessage(mt, msg); err != nil {
 				errc <- err
@@ -148,19 +192,47 @@ func (h *TerminalHandler) HandleTerminal(c *gin.Context) {
 		}
 	}()
 
+	// O getty do console serial só mostra o prompt de login ao receber Enter, e
+	// durante o boot ainda não existe getty (as mensagens do kernel chegam antes).
+	// Repete o Enter até ver "login:" ou até o usuário digitar algo.
+	go func() {
+		poke := time.NewTicker(3 * time.Second)
+		defer poke.Stop()
+		for i := 0; i < 60 && !promptReady.Load(); i++ {
+			if err := writeProxmox([]byte("0:1:\r")); err != nil {
+				return
+			}
+			<-poke.C
+		}
+	}()
+
 	go func() {
 		for {
-			mt, msg, err := clientConn.ReadMessage()
+			_, msg, err := clientConn.ReadMessage()
 			if err != nil {
 				errc <- err
 				return
 			}
-			if err := proxmoxConn.WriteMessage(mt, msg); err != nil {
+			promptReady.Store(true)
+			frame := fmt.Sprintf("0:%d:%s", len(msg), msg)
+			if err := writeProxmox([]byte(frame)); err != nil {
 				errc <- err
 				return
 			}
 		}
 	}()
 
-	<-errc
+	// Ping periódico ("2") mantém a sessão do termproxy viva, como faz o cliente oficial.
+	ping := time.NewTicker(30 * time.Second)
+	defer ping.Stop()
+	for {
+		select {
+		case <-errc:
+			return
+		case <-ping.C:
+			if err := writeProxmox([]byte("2")); err != nil {
+				return
+			}
+		}
+	}
 }
