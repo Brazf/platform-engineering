@@ -75,12 +75,14 @@ func main() {
 	public := r.Group("/api/auth")
 	{
 		public.POST("/login", authH.Login)
-		public.POST("/register", authH.Register)
 	}
 
 	protected := r.Group("/api")
 	protected.Use(middleware.Auth(cfg.JWTSecret))
 	{
+		// Cadastro de usuários: só pesquisadores criam contas (alunos concluem no primeiro acesso).
+		protected.POST("/users", middleware.RequireRole("pesquisador"), authH.Register)
+
 		vms := protected.Group("/vms")
 		{
 			vms.POST("", vmH.Create)

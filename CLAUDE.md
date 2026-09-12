@@ -48,6 +48,7 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - Smoke tests: `go run ./cmd/proxmox-check` (VM) e `go run ./cmd/proxmox-check --k3s` (container no cluster real)
 
 ## Autenticação
+- Cadastro de usuários: sem auto-cadastro. `POST /api/users` exige JWT de `pesquisador`. Alunos concluem o cadastro no primeiro acesso com código por e-mail (parte 2 pendente; spec `docs/superpowers/specs/2026-09-11-cadastro-usuarios-fluxo.md`). Primeiro pesquisador nasce por SQL/seed.
 - JWT salvo no localStorage com chave `"token"`
 - Todas as rotas /api/* exigem `Authorization: Bearer <token>`
 - WebSocket aceita `?token=` como query param
@@ -71,4 +72,5 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - [x] **Fase containers — bootstrap e smoke**: `k3s-server` criado no pool `researchers` (`K3S_NODE_POOL`), PodSecurity ajustado para `baseline`. Da VPN só a porta 22 passa: testar do notebook exige túnel SSH para 6443 (ver spec, "Desvios registrados").
 - [x] **Fase containers — ponta a ponta pelo front** (2026-09-11): ubuntu (terminal) e postgres (env, volume, TCP/NodePort, logs, psql) criados, usados e excluídos pelo front. Só o acesso externo `ip:porta` não foi testado (VPN bloqueia); validar quando o backend rodar na VM do laboratório.
 - [ ] **Verificar fluxo de VMs Ubuntu**: o provider bpg só manda `pool` no clone quando `pool_id` está definido; se o front não mandar pool, o token recebe 403. Confirmar que `POST /api/vms` ainda funciona.
+- [ ] **Cadastro por convite — parte 2** (spec `docs/superpowers/specs/2026-09-11-cadastro-usuarios-fluxo.md`): status/código de ativação no `User`, e-mail SMTP, `POST /api/auth/first-access`, tela `/primeiro-acesso` real, remover `/cadastro` público, `/cadastrar-usuario` sem senha.
 - [ ] **Containers v2**: start/stop/restart, build por Dockerfile/tarball (kaniko), TLS no Ingress, GPU.

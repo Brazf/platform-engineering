@@ -61,9 +61,10 @@ export async function apiLogin(email: string, password: string) {
   );
 }
 
+/** Cadastro de usuário: exige login com perfil pesquisador (POST /api/users). */
 export async function apiRegister(email: string, password: string, role: string) {
   return request<{ id: string; email: string; role: string }>(
-    "/api/auth/register",
+    "/api/users",
     { method: "POST", body: JSON.stringify({ email, password, role }) }
   );
 }

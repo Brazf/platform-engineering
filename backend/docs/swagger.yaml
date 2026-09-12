@@ -16,10 +16,16 @@ tags:
     description: Containers de aplicação no cluster k3s
 
 paths:
-  /auth/register:
+  /users:
     post:
       tags: [auth]
-      summary: Cadastrar novo usuário
+      summary: Cadastrar novo usuário (somente perfil pesquisador)
+      description: >-
+        Pesquisadores cadastram alunos e outros pesquisadores. Na v1 a senha é
+        definida aqui; o fluxo de primeiro acesso por código enviado por e-mail
+        substituirá esse campo.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -35,6 +41,18 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         "400":
           description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Perfil sem permissão para cadastrar usuários
           content:
             application/json:
               schema:
