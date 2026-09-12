@@ -47,3 +47,32 @@ Frontend
 
 Nome e CPF do mock antigo (não existem na entidade); recuperação de senha (telas `esqueceu-senha`,
 `codigo-recuperacao`, `nova-senha` continuam mock).
+
+## Parte 3 — Perfil do usuário (pendente, 2026-09-12)
+
+Tela **Meu perfil**, acessível a qualquer usuário logado (link no cabeçalho ou card na página inicial).
+- Campos editáveis: **nome** (novo campo em `User`, `name`, opcional até então) e **senha** (exige a senha atual +
+  nova senha + confirmação).
+- **E-mail não pode ser alterado** (é o login; exibido só para leitura).
+- Backend: `GET /api/me` (dados do próprio usuário), `PATCH /api/me` (`{ name }`),
+  `PUT /api/me/password` (`{ current_password, new_password }`; 401 se a senha atual não confere).
+- Migration: coluna `name` em `users`.
+
+## Parte 4 — Usuários cadastrados (pendente, 2026-09-12)
+
+Card **Usuários cadastrados** na página inicial, visível só para `pesquisador`, levando a `/usuarios`.
+- Lista **todos os usuários** (alunos e pesquisadores) com nome, e-mail, perfil, status (pendente/ativo) e data.
+- Ações permitidas ao pesquisador nessa tela: **alterar o e-mail** de um usuário e **excluir** o usuário. Nada
+  mais é editável ali (perfil e senha não).
+- Regras: não pode excluir a si mesmo; excluir usuário com VMs/containers exige decisão (v1: bloquear com
+  mensagem "remova os recursos antes").
+- Backend: `GET /api/users`, `PATCH /api/users/:id` (`{ email }`, 409 se já em uso), `DELETE /api/users/:id`;
+  todos com JWT + `RequireRole("pesquisador")`.
+- Front: lista no padrão `ResourceCard`/`Field`, edição de e-mail inline ou em modal pequeno, exclusão com
+  confirmação. Segue o mesmo `form-ui`.
+
+## Ordem sugerida para 2026-09-12
+
+1. Parte 2 (código por e-mail + primeiro acesso) — depende de SMTP.
+2. Parte 4 (lista de usuários) — pode andar em paralelo, não depende de e-mail.
+3. Parte 3 (perfil) — precisa da coluna `name`; fazer a migration junto com a parte 2.
