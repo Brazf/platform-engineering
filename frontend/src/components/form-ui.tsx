@@ -100,3 +100,79 @@ export function FormActions({
     </div>
   );
 }
+
+// ─── Listas e detalhes ────────────────────────────────────────────────────────
+
+/** Selo de status com bolinha colorida. */
+export function StatusBadge({ label, phase, message }: { label: string; phase: string; message?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[#E3E3E3] bg-[#FAFAFA] px-3 py-1 text-[11px] font-bold tracking-[1px] text-[#555] uppercase" title={message}>
+      <span className="h-[10px] w-[10px] rounded-full" style={{ backgroundColor: STATUS_DOT[phase] ?? STATUS_DOT.unknown }} />
+      {label}
+    </span>
+  );
+}
+
+/** Par rótulo/valor usado em cartões de lista e de detalhe. */
+export function Field({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <p className={CONSOLE.label}>{label}</p>
+      <div className={CONSOLE.value}>{children}</div>
+    </div>
+  );
+}
+
+/** Item clicável da lista de recursos. */
+export function ResourceCard({
+  href, name, description, status, fields, createdAt,
+}: {
+  href: string; name: string; description?: string;
+  status: { label: string; phase: string; message?: string };
+  fields: { label: string; value: ReactNode }[];
+  createdAt: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="block bg-white px-8 py-6 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)] transition-colors hover:bg-[#FCFCFC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1351B4]/40"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[20px] leading-none font-semibold text-black">{name}</p>
+          {description && <p className="mt-2 text-[14px] leading-[18px] text-[#6B6B6B]">{description}</p>}
+        </div>
+        <StatusBadge {...status} />
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-4">
+        {fields.map((f) => (
+          <Field key={f.label} label={f.label}>{f.value}</Field>
+        ))}
+        <Field label="Criado em">{new Date(createdAt).toLocaleDateString("pt-BR")}</Field>
+      </div>
+    </Link>
+  );
+}
+
+/** Mensagem de carregando / vazio / erro fora dos cartões. */
+export function PageNotice({ kind, children }: { kind: "info" | "error"; children: ReactNode }) {
+  return (
+    <p className={kind === "error" ? FORM.error + " mt-0" : "text-[15px] text-[#6B6B6B]"}>{children}</p>
+  );
+}
+
+/** Cabeçalho do cartão de detalhe: nome + status. */
+export function DetailHeader({ name, description, status }: { name: string; description?: string; status: { label: string; phase: string; message?: string } }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-[24px] leading-none font-semibold text-black">{name}</h2>
+        {description && <p className="mt-2 text-[14px] leading-[18px] text-[#6B6B6B]">{description}</p>}
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <StatusBadge {...status} />
+        {status.message && <p className="max-w-[360px] text-right text-[13px] leading-[18px] text-[#6B6B6B]">{status.message}</p>}
+      </div>
+    </div>
+  );
+}

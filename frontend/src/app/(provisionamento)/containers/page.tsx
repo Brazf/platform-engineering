@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { InternalBreadcrumb, InternalHeader } from "@/components";
+import { FORM, InternalBreadcrumb, InternalHeader, PageNotice, ResourceCard } from "@/components";
 import { apiListContainers, STATUS_LABEL, type Container } from "@/lib/api";
-
-const LINE = "text-[11.67px] leading-[16px] font-bold tracking-[1.5px] text-[rgba(0,0,0,0.87)] uppercase";
 
 export default function ContainersPage() {
   const [items, setItems] = useState<Container[]>([]);
@@ -44,37 +42,33 @@ export default function ContainersPage() {
           <InternalBreadcrumb label="Container" />
         </div>
 
-        <div className="flex h-[90px] items-start pb-8">
+        <div className="flex h-[90px] items-start justify-between pb-8">
           <h1 className="text-[41.8px] leading-none font-light text-black">Container</h1>
+          <Link href="/containers/criar" className={FORM.primaryBtn}>Criar container</Link>
         </div>
 
-        {error && <p className="text-[13px] text-[#E52207]">{error}</p>}
-        {loading && <p className={LINE}>Carregando...</p>}
-        {!loading && !error && items.length === 0 && <p className={LINE}>Nenhum container criado.</p>}
+        <div className="mx-auto flex max-w-[1100px] flex-col gap-4">
+          {error && <PageNotice kind="error">{error}</PageNotice>}
+          {loading && <PageNotice kind="info">Carregando...</PageNotice>}
+          {!loading && !error && items.length === 0 && (
+            <PageNotice kind="info">Você ainda não tem containers. Crie o primeiro pelo botão acima.</PageNotice>
+          )}
 
-        <div className="flex flex-col gap-4">
           {items.map((c) => (
-            <Link
+            <ResourceCard
               key={c.id}
               href={`/containers/${c.id}`}
-              className="block bg-white px-3 py-[25px] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]"
-            >
-              <p className={LINE}>NOME: {c.name}</p>
-              <p className={"mt-2 " + LINE}>IMAGEM: {c.image}</p>
-              <p className={"mt-2 " + LINE}>STATUS: {STATUS_LABEL[c.status.phase]}</p>
-              <p className={"mt-2 " + LINE}>ENDEREÇO: {c.external_url || "—"}</p>
-              <p className={"mt-2 " + LINE}>DATA DE CRIAÇÃO: {new Date(c.created_at).toLocaleDateString("pt-BR")}</p>
-            </Link>
+              name={c.name}
+              description={c.description}
+              status={{ label: STATUS_LABEL[c.status.phase], phase: c.status.phase, message: c.status.message }}
+              createdAt={c.created_at}
+              fields={[
+                { label: "Imagem", value: c.image },
+                { label: "Recursos", value: `${c.cpu_millis / 1000} vCPU, ${c.memory_mb >= 1024 ? `${c.memory_mb / 1024} GB` : `${c.memory_mb} MB`}` },
+                { label: "Endereço", value: c.external_url || "não exposto" },
+              ]}
+            />
           ))}
-        </div>
-
-        <div className="flex h-[71px] items-center justify-center py-4">
-          <Link
-            href="/containers/criar"
-            className="flex h-[39px] w-[214px] items-center justify-center rounded-[20px] bg-[#1351B4] text-[16.8px] leading-none font-semibold text-white"
-          >
-            Criar Container
-          </Link>
         </div>
       </main>
     </div>

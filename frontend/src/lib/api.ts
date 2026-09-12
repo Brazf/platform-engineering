@@ -72,6 +72,10 @@ export async function apiRegister(email: string, password: string, role: string)
 
 export type VMStatus = "creating" | "running" | "stopped" | "error";
 
+export const VM_STATUS_LABEL: Record<VMStatus, string> = {
+  creating: "CRIANDO", running: "LIGADA", stopped: "DESLIGADA", error: "ERRO",
+};
+
 export interface VM {
   id: string;
   proxmox_vm_id: number;

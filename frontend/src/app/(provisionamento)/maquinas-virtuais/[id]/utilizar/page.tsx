@@ -4,12 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CONSOLE, FORM, InternalCompactHeader, STATUS_DOT } from "@/components";
-import { apiGetVM, apiRebootVM, apiStopVM, type VM } from "@/lib/api";
+import { apiGetVM, apiRebootVM, apiStopVM, VM_STATUS_LABEL, type VM } from "@/lib/api";
 import "@xterm/xterm/css/xterm.css";
 
 type ConnState = "connecting" | "open" | "closed";
 const STATE_LABEL: Record<ConnState, string> = { connecting: "conectando...", open: "conectado", closed: "encerrado" };
-const VM_STATUS_LABEL: Record<VM["status"], string> = { creating: "CRIANDO", running: "LIGADA", stopped: "DESLIGADA", error: "ERRO" };
 
 export default function UtilizarMaquinaVirtualPage() {
   const params = useParams();
