@@ -64,8 +64,11 @@ Card **Usuários cadastrados** na página inicial, visível só para `pesquisado
 - Lista **todos os usuários** (alunos e pesquisadores) com nome, e-mail, perfil, status (pendente/ativo) e data.
 - Ações permitidas ao pesquisador nessa tela: **alterar o e-mail** de um usuário e **excluir** o usuário. Nada
   mais é editável ali (perfil e senha não).
-- Regras: não pode excluir a si mesmo; excluir usuário com VMs/containers exige decisão (v1: bloquear com
-  mensagem "remova os recursos antes").
+- Regras: não pode excluir a si mesmo. **Excluir um usuário apaga todos os recursos dele** (decisão de
+  2026-09-11): o backend deprovisiona cada VM (Terraform destroy; VMs sem workspace só saem do banco) e cada
+  container (cluster + registro) antes de remover o usuário. Se algum recurso falhar, a exclusão para e
+  responde 503 dizendo o que ficou; o front pede confirmação listando a quantidade de VMs e containers que
+  serão apagados.
 - Backend: `GET /api/users`, `PATCH /api/users/:id` (`{ email }`, 409 se já em uso), `DELETE /api/users/:id`;
   todos com JWT + `RequireRole("pesquisador")`.
 - Front: lista no padrão `ResourceCard`/`Field`, edição de e-mail inline ou em modal pequeno, exclusão com
