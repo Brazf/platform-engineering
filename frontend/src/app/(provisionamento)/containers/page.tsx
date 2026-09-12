@@ -70,6 +70,10 @@ export default function ContainersPage() {
             />
           ))}
         </div>
+
+        <div className="flex items-center justify-center py-6">
+          <Link href="/pagina-inicial-usuario" className={FORM.outlineBtn}>Voltar</Link>
+        </div>
       </main>
     </div>
   );
