@@ -55,7 +55,10 @@ func (r *Runtime) Apply(ctx context.Context, c *entity.Container, ingressDomain 
 		WithResources(applycorev1.ResourceRequirements().WithLimits(res).WithRequests(res)).
 		WithSecurityContext(applycorev1.SecurityContext().
 			WithAllowPrivilegeEscalation(false).
-			WithCapabilities(applycorev1.Capabilities().WithDrop("ALL")).
+			// Sem "drop ALL" puro: imagens como postgres fazem chown/chmod no
+			// entrypoint. Mantém só o conjunto padrão do Docker (permitido em baseline).
+			WithCapabilities(applycorev1.Capabilities().WithDrop("ALL").
+				WithAdd("CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "NET_BIND_SERVICE")).
 			WithSeccompProfile(applycorev1.SeccompProfile().WithType(corev1.SeccompProfileTypeRuntimeDefault)))
 	if c.Port > 0 {
 		ctr = ctr.WithPorts(applycorev1.ContainerPort().WithContainerPort(int32(c.Port)))

@@ -41,6 +41,8 @@ func TestApply_TCPWithVolume(t *testing.T) {
 	assert.Equal(t, "512Mi", ctr.Resources.Limits.Memory().String())
 	assert.Equal(t, "meu-pg-env", ctr.EnvFrom[0].SecretRef.Name)
 	assert.Equal(t, "/var/lib/postgresql/data", ctr.VolumeMounts[0].MountPath)
+	assert.Contains(t, ctr.SecurityContext.Capabilities.Add, corev1.Capability("CHOWN"))
+	assert.Equal(t, []corev1.Capability{"ALL"}, ctr.SecurityContext.Capabilities.Drop)
 
 	svc, err := cs.CoreV1().Services(c.Namespace).Get(ctx, "meu-pg", metav1.GetOptions{})
 	require.NoError(t, err)
