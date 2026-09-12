@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { ActionCard, InternalBreadcrumb, InternalHeader } from "@/components";
 import { getRole } from "@/lib/api";
 
 export default function PaginaInicialUsuarioPage() {
-  const [role, setRole] = useState<string | null>(null);
-  useEffect(() => { setRole(getRole()); }, []);
+  // Lê o perfil do localStorage sem setState em efeito; no servidor retorna null.
+  const role = useSyncExternalStore(() => () => {}, getRole, () => null);
 
   return (
     <div className="min-h-screen bg-[#F8F8F8]">
