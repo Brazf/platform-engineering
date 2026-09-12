@@ -57,7 +57,7 @@ export default function ContainersPage() {
             <Link
               key={c.id}
               href={`/containers/${c.id}`}
-              className="block h-[130px] bg-white px-3 py-[25px] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]"
+              className="block bg-white px-3 py-[25px] shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]"
             >
               <p className={LINE}>NOME: {c.name}</p>
               <p className={"mt-2 " + LINE}>IMAGEM: {c.image}</p>
