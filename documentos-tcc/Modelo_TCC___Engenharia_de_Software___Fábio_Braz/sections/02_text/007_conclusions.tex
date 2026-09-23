@@ -1,0 +1,27 @@
+\chapter{Conclusões e Trabalhos Futuros}
+\label{chapter:conclusoes_trabalhos_futuros}
+
+Com base nos objetivos estabelecidos, pode-se afirmar que a Plataforma de Engenharia Self-Service desenvolvida neste trabalho atingiu seu objetivo geral: oferecer a alunos e pesquisadores um portal capaz de provisionar máquinas virtuais e contêineres de aplicação de forma autônoma, sem exigir conhecimento aprofundado da infraestrutura subjacente. A arquitetura final, sustentada por Terraform para VMs e por um cluster Kubernetes dedicado para contêineres, diverge da abordagem originalmente prevista no pré-projeto — que previa o uso de Ansible para configuração de ambientes —, mas preserva a ideia central de reduzir a complexidade técnica exposta ao usuário final, tendo se mostrado, na prática, uma solução mais aderente ao modelo de provisionamento de contêineres adotado.
+
+\section{Trabalhos Futuros}
+
+Entre os itens que permanecem como trabalho futuro, destacam-se:
+
+\begin{itemize}
+    \item Suporte a acesso a GPU para cargas de trabalho de Inteligência Artificial e Aprendizado de Máquina, objetivo previsto desde o pré-projeto e ainda não implementado.
+
+    \item Ciclo de vida mais completo para contêineres de aplicação (\textit{start}, \textit{stop}, \textit{restart}) e suporte a \textit{build} de imagens a partir de \textit{Dockerfile} ou \textit{tarball} enviado pelo usuário.
+
+    \item TLS no \textit{Ingress} dos contêineres expostos via domínio, hoje disponibilizados apenas em HTTP.
+
+    \item Validação do acesso externo a contêineres por meio do par \texttt{ip:porta} do \textit{NodePort}, não realizada durante o desenvolvimento devido a restrições da rede VPN utilizada para acesso ao ambiente de laboratório.
+
+    \item Conclusão do fluxo de cadastro de usuários por convite: ativação por código enviado por e-mail, tela de primeiro acesso e remoção do cadastro público.
+
+    \item Tela de perfil do usuário, permitindo a alteração do próprio nome e senha.
+
+    \item Listagem e gerenciamento de usuários cadastrados pelo perfil pesquisador, incluindo a exclusão de um usuário com a devida remoção de todas as suas VMs e contêineres.
+\end{itemize}
+
+Através dessas frentes, a plataforma pode evoluir de uma Prova de Conceito validada para uma ferramenta mais completa de apoio à pesquisa e ao ensino no contexto do laboratório.
+\clearpage

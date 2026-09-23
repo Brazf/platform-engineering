@@ -1,0 +1,23 @@
+\chapter{Experimentos}
+
+Para validar o funcionamento da plataforma contra um ambiente Proxmox VE e um cluster k3s reais — e não apenas contra simulações ou testes unitários isolados —, foram conduzidos experimentos de validação em dois níveis: testes de fumaça (\textit{smoke tests}) automatizados e um cenário de uso ponta a ponta pelo portal web.
+
+\section{Testes de fumaça contra o ambiente real}
+
+Foram implementados dois utilitários de linha de comando (\texttt{cmd/proxmox-check}) que exercitam o fluxo completo de provisionamento contra a infraestrutura real, fora do conjunto de testes unitários:
+
+\begin{itemize}
+    \item o primeiro cria, consulta o status e remove uma máquina virtual diretamente no Proxmox VE, validando a integração via Terraform e via API REST;
+    \item o segundo, executado com a opção \texttt{--k3s}, cria, consulta e remove um contêiner de aplicação no cluster k3s real, validando a integração via \texttt{client-go}.
+\end{itemize}
+
+\section{Validação ponta a ponta pelo portal}
+
+Foi executado um cenário de uso completo pelo portal web, cobrindo a criação, o uso e a exclusão de recursos pelos dois modelos oferecidos pela plataforma:
+
+\begin{itemize}
+    \item uma máquina virtual Ubuntu, criada, acessada via terminal web e removida;
+    \item um contêiner de aplicação PostgreSQL, criado com variáveis de ambiente, volume persistente e exposição de porta TCP via \textit{NodePort}, tendo seus logs consultados e uma conexão via \texttt{psql} validada, antes de ser removido.
+\end{itemize}
+
+\par O acesso externo a um contêiner por meio do par \texttt{ip:porta} do \textit{NodePort} não pôde ser validado durante o desenvolvimento, pois a rede VPN utilizada para acesso ao ambiente de laboratório bloqueia o tráfego de entrada nessas portas a partir de fora da rede interna. Essa validação depende de o \textit{backend} estar em execução na própria VM do laboratório, e é discutida como trabalho futuro no Capítulo~\ref{chapter:conclusoes_trabalhos_futuros}.

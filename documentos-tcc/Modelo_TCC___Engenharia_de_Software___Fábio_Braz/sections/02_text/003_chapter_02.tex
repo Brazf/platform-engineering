@@ -1,0 +1,31 @@
+\chapter{Metodologia}
+
+Este trabalho adotou a abordagem de Prova de Conceito (PoC) para validar a viabilidade técnica e prática de uma Plataforma de Engenharia Self-Service voltada à automação da infraestrutura virtualizada \textit{on-premises}. A PoC foi conduzida de maneira incremental, com o sistema evoluindo em fases sucessivas, cada uma agregando uma capacidade completa e testável à plataforma.
+
+\clearpage
+
+\section{Etapas de Desenvolvimento}
+
+O desenvolvimento foi dividido nas seguintes fases:
+
+\subsection{Autenticação e usuários}
+Foi implementado o mecanismo de autenticação da plataforma, baseado em JWT, com dois perfis de usuário: \textit{aluno}, com limites de recursos menores, e \textit{pesquisador}, com limites maiores. As permissões de cada perfil no Proxmox VE são configuradas externamente à aplicação.
+
+\subsection{CRUD de máquinas virtuais no Proxmox}
+Foi implementada a integração inicial com a API REST do Proxmox VE para criação, consulta de status e remoção de máquinas virtuais, seguindo o fluxo \textit{Handler} \(\rightarrow\) \textit{UseCase} \(\rightarrow\) \textit{ProxmoxClient}.
+
+\subsection{Terminal web}
+Foi implementado o acesso a terminal das máquinas virtuais diretamente pelo navegador, utilizando \textit{xterm.js} no \textit{frontend} e um proxy WebSocket no \textit{backend} que reproduz o protocolo \textit{termproxy} do Proxmox VE.
+
+\subsection{Integração \textit{frontend}/\textit{backend}}
+O portal web, desenvolvido em Next.js (React) com TypeScript, foi integrado ao \textit{backend}, cobrindo o fluxo principal de criação, listagem, acesso e remoção de máquinas virtuais pelo usuário final.
+
+\subsection{Migração do provisionamento para Terraform}
+A criação e a remoção de máquinas virtuais deixaram de ser feitas diretamente pela API REST do Proxmox e passaram a ser feitas por meio de Terraform (\textit{provider} \texttt{bpg/proxmox}), com um \textit{workspace} isolado por VM. Essa etapa substituiu chamadas imperativas por uma declaração de infraestrutura como código, tornando o provisionamento auditável e reprodutível.
+
+\subsection{Contêineres de aplicação em k3s}
+Foi adicionado um segundo modelo de recurso à plataforma: contêineres de aplicação, provisionados em um cluster Kubernetes (\textit{k3s}) \textit{single-node} dedicado. Cada usuário passou a ter um \textit{namespace} próprio, com quota de recursos definida pelo perfil, e exposição de serviços via \textit{Ingress} (para tráfego HTTP, com um subdomínio por contêiner) ou \textit{NodePort} (para TCP ou quando não há domínio configurado). Essa fase substituiu a proposta original de automação de configuração via Ansible: em vez de instalar e configurar \textit{software} dentro de uma VM genérica, o usuário passou a poder provisionar diretamente um contêiner de aplicação já configurado (por exemplo, um banco de dados), orquestrado nativamente pelo Kubernetes.
+
+\section{Justificativa do Método}
+
+A escolha da abordagem de Prova de Conceito (PoC) se justifica por tratar-se de uma solução que integra múltiplas ferramentas de infraestrutura (Proxmox, Terraform, Kubernetes) em um único portal self-service, cujo objetivo principal é validar a viabilidade e os benefícios dessa integração de forma prática e demonstrável. O desenvolvimento incremental por fases permitiu identificar rapidamente obstáculos técnicos — como a necessidade de abandonar o Ansible em favor de uma orquestração nativa em Kubernetes para contêineres — e ajustar a arquitetura da solução ao longo do trabalho, sem comprometer o objetivo geral de reduzir a complexidade de infraestrutura exposta ao usuário final.

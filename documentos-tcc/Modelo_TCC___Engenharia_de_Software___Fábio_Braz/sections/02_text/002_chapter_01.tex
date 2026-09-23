@@ -1,0 +1,41 @@
+\chapter{Fundamentação teórica}
+\label{chapter:fundamentacao_teorica}
+
+Para uma melhor compreensão da implementação e da metodologia, é necessário explicar os principais conceitos e ferramentas que fundamentam o desenvolvimento da plataforma proposta.
+
+%--------------------------------Seção 2.1--------------------------------%
+
+\section{Infraestrutura como Código e Provisionamento Automatizado}
+
+\par Infraestrutura como Código (\textit{Infrastructure as Code} — IaC) é a prática de gerenciar e provisionar infraestrutura computacional por meio de arquivos de configuração legíveis por máquina, em vez de processos manuais e interativos. Essa abordagem permite versionar, revisar e reproduzir ambientes de forma consistente, reduzindo a variação entre ambientes e a incidência de erros humanos \cite{KunalBhandari}.\\
+\par Estudos sobre automação de infraestrutura demonstram que o provisionamento manual de ambientes computacionais é um processo demorado e sujeito a falhas, sendo a automação de ponta a ponta um fator determinante para a redução do tempo de entrega de recursos \cite{Sandobalín}. De forma semelhante, abordagens baseadas em modelos para o provisionamento de \textit{hardware} têm sido propostas como forma de reduzir a intervenção manual e padronizar a criação de ambientes de TI \cite{Gokhale}.
+
+\subsection{Terraform}
+O Terraform é uma ferramenta de código aberto de Infraestrutura como Código, mantida pela HashiCorp, que permite declarar recursos de infraestrutura (como máquinas virtuais, redes e discos) em arquivos de configuração e aplicá-los de forma idempotente contra provedores de nuvem ou de virtualização \textit{on-premises} \cite{terraformDocs:online}. O Terraform mantém um arquivo de estado que reflete os recursos efetivamente provisionados, permitindo identificar divergências entre a configuração declarada e o estado real da infraestrutura, e aplicar apenas as mudanças necessárias a cada execução.
+
+%------------------------------- Seção 2.2 --------------------------------------------%
+
+\section{Engenharia de Plataforma e Infraestrutura Self-Service}
+
+\par A Engenharia de Plataforma (\textit{Platform Engineering}) é a disciplina que se concentra em projetar e construir ferramentas, portais e fluxos de trabalho que reduzam a carga cognitiva de desenvolvedores e pesquisadores no consumo de infraestrutura, oferecendo capacidades de autoatendimento (\textit{self-service}) sobre uma base de automação subjacente \cite{Sandobalín}. O objetivo central dessa abordagem é permitir que o usuário final solicite e obtenha um ambiente pronto para uso sem depender diretamente de uma equipe de operações para cada solicitação.\\
+\par Pesquisas sobre o impacto do desenvolvimento de infraestrutura na produtividade indicam que a disponibilidade de recursos computacionais sob demanda, com baixo tempo de espera, está diretamente associada a ganhos de eficiência em ambientes de pesquisa e desenvolvimento \cite{Muhammad}. Nesse sentido, plataformas self-service buscam otimizar a chamada Experiência do Pesquisador (\textit{Researcher Experience} — RX), termo que descreve a facilidade com que um pesquisador consegue obter e utilizar os recursos computacionais necessários às suas atividades, sem se envolver com os detalhes de baixo nível da infraestrutura subjacente \cite{Minoru}.
+
+\subsection{Modelos de recursos: máquinas virtuais e contêineres}
+Uma plataforma self-service de infraestrutura pode expor ao usuário diferentes modelos de recurso computacional. Máquinas virtuais oferecem isolamento completo em nível de sistema operacional, sendo adequadas a cargas de trabalho que exigem um ambiente completo e persistente. Contêineres de aplicação, por outro lado, compartilham o núcleo do sistema operacional do hospedeiro e são orquestrados por um sistema de gerenciamento de cargas de trabalho, sendo mais adequados a aplicações efêmeras ou que já seguem um modelo de implantação baseado em imagens.
+
+%----------------------------------------- Seção 2.3 ------------------------------------------------
+
+\section{Virtualização e Orquestração de Contêineres}
+
+\subsection{Proxmox VE}
+O Proxmox VE (\textit{Virtual Environment}) é uma plataforma de virtualização de código aberto que combina KVM (\textit{Kernel-based Virtual Machine}) para máquinas virtuais e LXC para contêineres do sistema operacional, oferecendo uma API REST completa para automação de todas as operações de gerenciamento, como criação, consulta de status e acesso a terminal das VMs \cite{proxmoxDocs:online}. Por expor uma API REST e suportar autenticação via \textit{token}, o Proxmox VE viabiliza a integração com ferramentas de automação externas, como o Terraform, permitindo que a criação de máquinas virtuais seja declarada como código em vez de realizada manualmente pela interface web.
+
+\subsection{Kubernetes e k3s}
+O Kubernetes é uma plataforma de orquestração de contêineres de código aberto que automatiza a implantação, o escalonamento e o gerenciamento de aplicações em contêineres \cite{kubernetesDocs:online}. Entre seus principais conceitos estão o \textit{namespace}, que permite isolar logicamente recursos de diferentes usuários ou equipes dentro do mesmo cluster; o \textit{Ingress}, responsável por rotear tráfego HTTP externo até os serviços internos com base em regras de domínio; e o \textit{NodePort}, que expõe um serviço em uma porta fixa de cada nó do cluster, sendo útil para protocolos não HTTP.\\
+\par O k3s é uma distribuição leve do Kubernetes, empacotada em um único binário, voltada para ambientes com recursos computacionais mais restritos ou para cenários de borda (\textit{edge}), mantendo compatibilidade com a API padrão do Kubernetes e permitindo o uso das mesmas ferramentas de administração do ecossistema.
+
+%----------------------------------------- Seção 2.4 ------------------------------------------------
+
+\section{Autenticação e Autorização}
+
+\par O controle de acesso de uma plataforma multiusuário exige um mecanismo que permita identificar o usuário autenticado em cada requisição, sem a necessidade de manter estado de sessão no servidor. O JSON Web Token (JWT) é um padrão aberto (RFC 7519) que define um formato compacto e autocontido para transmitir informações de forma segura entre partes, como um conjunto de reivindicações (\textit{claims}) assinadas digitalmente \cite{jwtRfc:online}. Por ser autocontido e verificável apenas com a chave de assinatura, o JWT permite que um serviço \textit{backend} valide a identidade e o perfil de um usuário em cada requisição sem consultar uma base de sessões centralizada, sendo amplamente utilizado em arquiteturas de API REST.
