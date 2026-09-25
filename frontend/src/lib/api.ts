@@ -166,8 +166,7 @@ export async function apiCreateVM(data: {
   memory_mb: number;
   disk_gb: number;
   os_template: string;
-  pool?: string;
-  require_gpu?: boolean;
+  require_gpu?: boolean; // o pool do Proxmox é escolhido pelo backend conforme o perfil
 }): Promise<{
   id: string;
   proxmox_vm_id: number;

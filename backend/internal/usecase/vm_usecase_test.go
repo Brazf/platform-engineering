@@ -88,8 +88,11 @@ func (m *mockProvisioner) Deprovision(ctx context.Context, workspaceID uuid.UUID
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 func newVMUC(vmRepo *mockVMRepo, px *mockProxmoxClient, prov *mockProvisioner) *usecase.VMUseCase {
-	return usecase.NewVMUseCase(vmRepo, px, prov, "pve01", 9000)
+	return usecase.NewVMUseCase(vmRepo, px, prov, "pve01", 9000, testPools)
 }
+
+// Pools distintos por perfil para provar que o backend escolhe (e não o front).
+var testPools = map[string]string{"aluno": "pool-alunos", "pesquisador": "researchers"}
 
 func baseCreateReq() usecase.CreateVMRequest {
 	return usecase.CreateVMRequest{
@@ -98,7 +101,6 @@ func baseCreateReq() usecase.CreateVMRequest {
 		MemoryMB:   1024,
 		DiskGB:     4,
 		OSTemplate: "debian-11",
-		Pool:       "students",
 		Tags:       []string{"proxlab", "aluno"},
 		Role:       "aluno",
 	}
@@ -156,7 +158,6 @@ func TestCreateVM_PesquisadorWithinLimit(t *testing.T) {
 	req := baseCreateReq()
 	req.CPUCores = 8
 	req.MemoryMB = 16384
-	req.Pool = "researchers"
 	req.Role = "pesquisador"
 
 	res, err := uc.CreateVM(context.Background(), uuid.New(), req)
@@ -426,7 +427,7 @@ func TestCreateVM_UbuntuWithCloneDisabled(t *testing.T) {
 		Return(106, nil)
 	vmRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-	uc := usecase.NewVMUseCase(vmRepo, px, prov, "pve01", 0)
+	uc := usecase.NewVMUseCase(vmRepo, px, prov, "pve01", 0, testPools)
 	req := baseCreateReq()
 	req.OSTemplate = "ubuntu-22.04"
 
@@ -435,4 +436,21 @@ func TestCreateVM_UbuntuWithCloneDisabled(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, spec.CloneVMID)
 	assert.Nil(t, res.Credentials)
+}
+
+// Cenário: o pool vem do perfil do usuário (config), não do corpo da requisição.
+func TestCreateVM_PoolComesFromRole(t *testing.T) {
+	vmRepo := new(mockVMRepo)
+	px := new(mockProxmoxClient)
+	prov := new(mockProvisioner)
+	prov.On("Provision", mock.Anything, mock.Anything, mock.MatchedBy(func(s repository.VMSpec) bool {
+		return s.Pool == "pool-alunos"
+	})).Return(200, nil)
+	vmRepo.On("Create", mock.Anything, mock.MatchedBy(func(v *entity.VM) bool { return v.Pool == "pool-alunos" })).Return(nil)
+
+	_, err := newVMUC(vmRepo, px, prov).CreateVM(context.Background(), uuid.New(), baseCreateReq())
+
+	assert.NoError(t, err)
+	prov.AssertExpectations(t)
+	vmRepo.AssertExpectations(t)
 }

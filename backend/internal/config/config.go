@@ -41,14 +41,17 @@ type Config struct {
 	TerraformWorkdir string // raiz dos workspaces por VM
 
 	// k3s / containers
-	K3SNodeIP       string // IP fixo da VM do cluster em CIDR, ex: "10.0.0.50/24"
-	K3SNodeGateway  string
-	K3SNodePool     string // resource pool do Proxmox onde a VM do cluster nasce
-	K3SNodeCPU      int
-	K3SNodeMemoryMB int
-	K3SNodeDiskGB   int
-	IngressDomain   string // vazio → containers HTTP expostos por NodePort
-	KubeconfigPath  string // default: <TerraformWorkdir>/k3s/kubeconfig
+	K3SNodeIP      string // IP fixo da VM do cluster em CIDR, ex: "10.0.0.50/24"
+	K3SNodeGateway string
+	K3SNodePool    string // resource pool do Proxmox onde a VM do cluster nasce
+	// Resource pool do Proxmox para as VMs de cada perfil (o token precisa de VM.Allocate no pool)
+	ProxmoxPoolAluno       string
+	ProxmoxPoolPesquisador string
+	K3SNodeCPU             int
+	K3SNodeMemoryMB        int
+	K3SNodeDiskGB          int
+	IngressDomain          string // vazio → containers HTTP expostos por NodePort
+	KubeconfigPath         string // default: <TerraformWorkdir>/k3s/kubeconfig
 
 	// Server
 	ServerPort string
@@ -101,6 +104,8 @@ func Load() (*Config, error) {
 		K3SNodeIP:                 getEnv("K3S_NODE_IP", ""),
 		K3SNodeGateway:            getEnv("K3S_NODE_GATEWAY", ""),
 		K3SNodePool:               getEnv("K3S_NODE_POOL", "researchers"),
+		ProxmoxPoolAluno:          getEnv("PROXMOX_POOL_ALUNO", "researchers"),
+		ProxmoxPoolPesquisador:    getEnv("PROXMOX_POOL_PESQUISADOR", "researchers"),
 		K3SNodeCPU:                k3sCPU,
 		K3SNodeMemoryMB:           k3sMem,
 		K3SNodeDiskGB:             k3sDisk,

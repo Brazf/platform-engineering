@@ -19,14 +19,13 @@ func NewVMHandler(vmUC *usecase.VMUseCase) *VMHandler {
 }
 
 // createVMRequest é o payload esperado pelo frontend para criação de VM.
-// pool e tags são opcionais.
+// tags é opcional. O pool do Proxmox não vem do cliente: o backend escolhe pelo perfil.
 type createVMRequest struct {
 	Name       string   `json:"name"        binding:"required"`
 	CPUCores   int      `json:"cpu_cores"   binding:"required,min=1,max=16"`
 	MemoryMB   int      `json:"memory_mb"   binding:"required,min=512"`
 	DiskGB     int      `json:"disk_gb"     binding:"required,min=4"`
 	OSTemplate string   `json:"os_template" binding:"required"`
-	Pool       string   `json:"pool"`
 	Tags       []string `json:"tags"`
 	RequireGPU bool     `json:"require_gpu"`
 }
@@ -56,7 +55,6 @@ func (h *VMHandler) Create(c *gin.Context) {
 		MemoryMB:   req.MemoryMB,
 		DiskGB:     req.DiskGB,
 		OSTemplate: req.OSTemplate,
-		Pool:       req.Pool,
 		Tags:       req.Tags,
 		Role:       role,
 		RequireGPU: req.RequireGPU,

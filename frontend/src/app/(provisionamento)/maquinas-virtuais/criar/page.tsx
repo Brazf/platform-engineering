@@ -51,14 +51,12 @@ export default function CriarMaquinaVirtualPage() {
     }
     setLoading(true);
     try {
-      const pool = role === "pesquisador" ? "researchers" : "students";
       const created = await apiCreateVM({
         name: name.trim(),
         cpu_cores: cpu,
         memory_mb: memoryMb,
         disk_gb: diskGb,
         os_template: os,
-        pool,
         require_gpu: requireGpu,
       });
       if (created.credentials) {

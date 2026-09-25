@@ -27,7 +27,6 @@ type CreateVMRequest struct {
 	MemoryMB   int
 	DiskGB     int
 	OSTemplate string
-	Pool       string   // "researchers" ou "students"
 	Tags       []string // ex: ["proxlab","aluno"]
 	Role       string   // role do usuário autenticado, para validar limites
 	RequireGPU bool
@@ -54,6 +53,9 @@ type VMUseCase struct {
 	provisioner        repository.Provisioner
 	node               string // nó Proxmox onde as VMs são criadas (PROXMOX_NODE)
 	ubuntuTemplateVMID int    // template cloud-init clonado para VMs Ubuntu; 0 desabilita clone
+	// poolsByRole: perfil → resource pool do Proxmox. Decidido aqui (config), nunca pelo cliente:
+	// o token só aloca VMs dentro dos pools em que tem permissão.
+	poolsByRole map[string]string
 }
 
 func NewVMUseCase(
@@ -62,6 +64,7 @@ func NewVMUseCase(
 	provisioner repository.Provisioner,
 	node string,
 	ubuntuTemplateVMID int,
+	poolsByRole map[string]string,
 ) *VMUseCase {
 	return &VMUseCase{
 		vmRepo:             vmRepo,
@@ -69,6 +72,7 @@ func NewVMUseCase(
 		provisioner:        provisioner,
 		node:               node,
 		ubuntuTemplateVMID: ubuntuTemplateVMID,
+		poolsByRole:        poolsByRole,
 	}
 }
 
@@ -80,13 +84,14 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		return nil, err
 	}
 
+	pool := uc.poolsByRole[req.Role]
 	spec := repository.VMSpec{
 		Name:       req.Name,
 		CPUCores:   req.CPUCores,
 		MemoryMB:   req.MemoryMB,
 		DiskGB:     req.DiskGB,
 		OSType:     osTypeFromTemplate(req.OSTemplate),
-		Pool:       req.Pool,
+		Pool:       pool,
 		Tags:       req.Tags,
 		RequireGPU: req.RequireGPU,
 	}
@@ -121,7 +126,7 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		DiskGB:      req.DiskGB,
 		OSTemplate:  req.OSTemplate,
 		Node:        uc.node,
-		Pool:        req.Pool,
+		Pool:        pool,
 		Tags:        strings.Join(req.Tags, ";"),
 		RequireGPU:  req.RequireGPU,
 		Status:      status,

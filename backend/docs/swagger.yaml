@@ -848,8 +848,6 @@ components:
         os_template:
           type: string
           example: ubuntu-22.04
-        pool:
-          type: string
         tags:
           type: array
           items:
@@ -914,6 +912,7 @@ components:
           type: string
         pool:
           type: string
+          description: Resource pool do Proxmox, escolhido pelo backend conforme o perfil (PROXMOX_POOL_ALUNO / PROXMOX_POOL_PESQUISADOR)
         tags:
           type: string
           description: Tags separadas por ";" (formato do Proxmox)
