@@ -54,8 +54,11 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - WebSocket aceita `?token=` como query param
 - 401 → redirecionar para /login
 
+## Frontend — design system
+Toda tela interna nova segue `docs/frontend-design-system.md` (padrão de VMs/containers: `@/components` → `FormCard`, `Group`, `FORM.*`, `ResourceCard`...). Ler antes de criar/alterar telas; acrescentar tokens/componentes lá e em `form-ui.tsx`, nunca estilos soltos.
+
 ## Regras
-- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceção acordada: `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
+- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceções acordadas: ícone "Meu perfil" no header; `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
 - Sempre: `if err != nil`, `context.Context` em I/O, validar payload nos handlers, UUIDs como PK
 
 ## Fases
@@ -73,6 +76,6 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - [x] **Fase containers — ponta a ponta pelo front** (2026-09-11): ubuntu (terminal) e postgres (env, volume, TCP/NodePort, logs, psql) criados, usados e excluídos pelo front. Só o acesso externo `ip:porta` não foi testado (VPN bloqueia); validar quando o backend rodar na VM do laboratório.
 - [ ] **Verificar fluxo de VMs Ubuntu**: o provider bpg só manda `pool` no clone quando `pool_id` está definido; se o front não mandar pool, o token recebe 403. Confirmar que `POST /api/vms` ainda funciona.
 - [ ] **Cadastro por convite — parte 2** (spec `docs/superpowers/specs/2026-09-11-cadastro-usuarios-fluxo.md`): status/código de ativação no `User`, e-mail SMTP, `POST /api/auth/first-access`, tela `/primeiro-acesso` real, remover `/cadastro` público, `/cadastrar-usuario` sem senha.
-- [ ] **Perfil do usuário — parte 3** (mesma spec): tela "Meu perfil" para alterar nome e senha (senha atual obrigatória); e-mail somente leitura. `GET/PATCH /api/me`, `PUT /api/me/password`, coluna `name`.
+- [x] **Perfil do usuário — parte 3** (2026-09-25): ícone de perfil no header → `/meu-perfil` (nome e senha; e-mail só leitura). `GET/PATCH /api/me`, `PUT /api/me/password` (senha atual errada → 403, não 401), coluna `users.name` (migration 004).
 - [ ] **Usuários cadastrados — parte 4** (mesma spec): card na página inicial só para pesquisador → `/usuarios` lista alunos e pesquisadores; pesquisador só pode alterar e-mail ou excluir; **excluir usuário apaga todas as VMs e containers dele** (deprovisiona antes de remover). `GET/PATCH/DELETE /api/users[/:id]` com RequireRole("pesquisador").
 - [ ] **Containers v2**: start/stop/restart, build por Dockerfile/tarball (kaniko), TLS no Ingress, GPU.

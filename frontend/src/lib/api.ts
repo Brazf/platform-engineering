@@ -69,6 +69,33 @@ export async function apiRegister(email: string, password: string, role: string)
   );
 }
 
+// ─── Meu perfil ───────────────────────────────────────────────────────────────
+
+export interface Profile {
+  id: string;
+  email: string;
+  name: string;
+  role: "aluno" | "pesquisador";
+  created_at: string;
+}
+
+export async function apiGetProfile(): Promise<Profile> {
+  return request<Profile>("/api/me");
+}
+
+/** Só o nome é alterável; e-mail e perfil são fixos. */
+export async function apiUpdateProfile(name: string): Promise<Profile> {
+  return request<Profile>("/api/me", { method: "PATCH", body: JSON.stringify({ name }) });
+}
+
+/** 403 = senha atual incorreta (a mensagem do backend vem no Error). */
+export async function apiChangePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return request<void>("/api/me/password", {
+    method: "PUT",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 // ─── VMs ──────────────────────────────────────────────────────────────────────
 
 export type VMStatus = "creating" | "running" | "stopped" | "error";

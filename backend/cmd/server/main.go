@@ -49,10 +49,12 @@ func main() {
 	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
+	profileUC := usecase.NewProfileUseCase(userRepo)
 	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID)
 	containerUC := usecase.NewContainerUseCase(containerRepo, containerRuntime, cfg.IngressDomain, cfg.K3SNodeHost())
 
 	authH := handler.NewAuthHandler(authUC)
+	profileH := handler.NewProfileHandler(profileUC)
 	vmH := handler.NewVMHandler(vmUC)
 	containerH := handler.NewContainerHandler(containerUC)
 	containerTermH := wshandler.NewContainerTerminalHandler(containerUC, containerRuntime)
@@ -82,6 +84,11 @@ func main() {
 	{
 		// Cadastro de usuários: só pesquisadores criam contas (alunos concluem no primeiro acesso).
 		protected.POST("/users", middleware.RequireRole("pesquisador"), authH.Register)
+
+		// Meu perfil: qualquer usuário logado lê/edita os próprios dados (e-mail é fixo).
+		protected.GET("/me", profileH.Get)
+		protected.PATCH("/me", profileH.Update)
+		protected.PUT("/me/password", profileH.ChangePassword)
 
 		vms := protected.Group("/vms")
 		{

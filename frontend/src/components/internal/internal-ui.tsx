@@ -54,6 +54,9 @@ export function InternalHeader() {
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F8F8]">
             <Image src="/assets/internal/icon-bell.svg" alt="Notificações" width={12} height={14} className="h-[14px] w-[12px]" />
           </span>
+          <Link href="/meu-perfil" aria-label="Meu perfil" title="Meu perfil" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F8F8] hover:bg-[#EEF3FB] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1351B4]/40">
+            <Image src="/assets/internal/icon-profile.svg" alt="" width={12} height={14} className="h-[14px] w-[12px]" />
+          </Link>
           <span className="h-8 w-px bg-[#CCCCCC]" />
           <Link href="/" className="flex h-[39px] w-[79px] items-center justify-center rounded-[20px] text-[16.8px] leading-none font-semibold text-[#1351B4]">
             Sair

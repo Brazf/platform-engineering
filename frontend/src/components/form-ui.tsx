@@ -12,6 +12,7 @@ export const FORM = {
   value: "flex h-10 items-center text-[15px] text-black",
   linkBtn: "text-[13px] font-semibold text-[#1351B4] hover:underline",
   error: "mt-6 rounded-[4px] border border-[#E52207] bg-[#FDF2F1] px-3 py-2 text-[14px] text-[#B21D38]",
+  success: "mt-6 rounded-[4px] border border-[#168821] bg-[#E3F5E1] px-3 py-2 text-[14px] text-[#0B5B13]",
   primaryBtn:
     "flex h-[42px] items-center justify-center rounded-[21px] bg-[#1351B4] px-7 text-[16.8px] leading-none font-semibold text-white hover:bg-[#0F4499] disabled:opacity-60",
   dangerBtn:
@@ -37,13 +38,13 @@ export const STATUS_DOT: Record<string, string> = {
   unknown: "#FA1D1D",
 };
 
-/** Cartão branco do formulário: título, linha de contexto e seções. */
+/** Cartão branco do formulário: título, linha de contexto e seções. Cresce na altura se o pai esticar (ex.: grid auto-rows-fr). */
 export function FormCard({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mx-auto max-w-[1100px] bg-white px-10 pt-7 pb-9 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+    <section className="mx-auto flex w-full max-w-[1100px] flex-col bg-white px-10 pt-7 pb-9 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
       <p className="text-[12px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">{title}</p>
       {subtitle && <p className="mt-1 text-[14px] text-[#6B6B6B]">{subtitle}</p>}
-      <div className="mt-7 flex flex-col gap-7">{children}</div>
+      <div className="mt-7 flex flex-1 flex-col gap-7">{children}</div>
     </section>
   );
 }
