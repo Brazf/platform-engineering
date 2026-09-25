@@ -69,6 +69,31 @@ export async function apiRegister(email: string, password: string, role: string)
   );
 }
 
+/** Usuário na lista de "Usuários cadastrados" (GET /api/users, só pesquisador). */
+export interface UserSummary {
+  id: string;
+  email: string;
+  name: string;
+  role: "aluno" | "pesquisador";
+  created_at: string;
+  vm_count: number;
+  container_count: number;
+}
+
+export async function apiListUsers(): Promise<UserSummary[]> {
+  return request<UserSummary[]>("/api/users");
+}
+
+/** Pesquisador só altera o e-mail; 409 se já estiver em uso. */
+export async function apiUpdateUserEmail(id: string, email: string) {
+  return request<{ id: string; email: string }>(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify({ email }) });
+}
+
+/** Apaga o usuário e todas as VMs e containers dele; 503 se algum recurso não sair. */
+export async function apiDeleteUser(id: string): Promise<void> {
+  return request<void>(`/api/users/${id}`, { method: "DELETE" });
+}
+
 // ─── Meu perfil ───────────────────────────────────────────────────────────────
 
 export interface Profile {

@@ -26,7 +26,10 @@ export default function PaginaInicialUsuarioPage() {
           <ActionCard icon="container" label="Container" href="/containers" height="121" />
           {/* Só pesquisadores cadastram usuários (alunos concluem o cadastro no primeiro acesso). */}
           {role === "pesquisador" && (
-            <ActionCard icon="userPlus" label="Cadastrar novo usuário" href="/cadastrar-usuario" height="121" />
+            <>
+              <ActionCard icon="userPlus" label="Cadastrar novo usuário" href="/cadastrar-usuario" height="121" />
+              <ActionCard icon="users" label="Usuários cadastrados" href="/usuarios" height="121" />
+            </>
           )}
         </div>
       </main>

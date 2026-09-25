@@ -58,6 +58,10 @@ func (m *mockRuntime) EnsureNamespace(ctx context.Context, ns string, q reposito
 func (m *mockRuntime) Apply(ctx context.Context, c *entity.Container, d string) error {
 	return m.Called(ctx, c, d).Error(0)
 }
+func (m *mockRuntime) DeleteNamespace(ctx context.Context, ns string) error {
+	return m.Called(ctx, ns).Error(0)
+}
+
 func (m *mockRuntime) Delete(ctx context.Context, ns, n string) error {
 	return m.Called(ctx, ns, n).Error(0)
 }
@@ -243,4 +247,22 @@ func TestGet_OtherUserIsNotFound(t *testing.T) {
 	repo.On("FindByID", mock.Anything, id).Return(&entity.Container{ID: id, UserID: uuid.New()}, nil)
 	_, err := uc.Get(context.Background(), uuid.New(), id)
 	assert.ErrorIs(t, err, usecase.ErrContainerNotFound)
+}
+
+// Cenário: exclusão do usuário apaga o namespace dele (u-<8 chars do id>).
+func TestDeleteUserNamespace_UsesUserNamespace(t *testing.T) {
+	repo, rt := new(mockContainerRepo), new(mockRuntime)
+	uid := uuid.New()
+	rt.On("DeleteNamespace", mock.Anything, entity.NamespaceFor(uid)).Return(nil)
+
+	err := usecase.NewContainerUseCase(repo, rt, "", "10.0.0.1").DeleteUserNamespace(context.Background(), uid)
+
+	assert.NoError(t, err)
+	rt.AssertExpectations(t)
+}
+
+// Cenário: backend sem cluster configurado — não há namespace a apagar, não bloqueia a exclusão.
+func TestDeleteUserNamespace_NoRuntime(t *testing.T) {
+	err := usecase.NewContainerUseCase(new(mockContainerRepo), nil, "", "10.0.0.1").DeleteUserNamespace(context.Background(), uuid.New())
+	assert.NoError(t, err)
 }

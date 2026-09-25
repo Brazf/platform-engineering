@@ -48,6 +48,8 @@ type ContainerRuntime interface {
 	// Apply cria/atualiza Deployment, Secret, Service, Ingress e PVC. Idempotente.
 	Apply(ctx context.Context, c *entity.Container, ingressDomain string) error
 	Delete(ctx context.Context, ns, name string) error
+	// DeleteNamespace apaga o namespace do usuário e tudo dentro dele. Inexistente não é erro.
+	DeleteNamespace(ctx context.Context, ns string) error
 	Status(ctx context.Context, ns string, names []string) (map[string]ContainerStatus, error)
 	Exec(ctx context.Context, ns, name string, cols, rows uint16) (TerminalSession, error)
 	Logs(ctx context.Context, ns, name string, follow bool) (io.ReadCloser, error)

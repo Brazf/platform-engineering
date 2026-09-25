@@ -59,7 +59,7 @@ Tela **Meu perfil**, acessível a qualquer usuário logado (link no cabeçalho o
 - Migration: coluna `name` em `users`.
 - Desvio (2026-09-25): senha atual errada responde **403**, não 401 — o front trata todo 401 como sessão expirada e deslogaria o usuário. Acesso pelo ícone de perfil no header (entre notificações e Sair).
 
-## Parte 4 — Usuários cadastrados (pendente, 2026-09-12)
+## Parte 4 — Usuários cadastrados (concluída em 2026-09-25)
 
 Card **Usuários cadastrados** na página inicial, visível só para `pesquisador`, levando a `/usuarios`.
 - Lista **todos os usuários** (alunos e pesquisadores) com nome, e-mail, perfil, status (pendente/ativo) e data.
@@ -74,6 +74,13 @@ Card **Usuários cadastrados** na página inicial, visível só para `pesquisado
   todos com JWT + `RequireRole("pesquisador")`.
 - Front: lista no padrão `ResourceCard`/`Field`, edição de e-mail inline ou em modal pequeno, exclusão com
   confirmação. Segue o mesmo `form-ui`.
+- Implementado (2026-09-25): `UserAdminUseCase` reaproveita `VMUseCase.DeleteVM` e `ContainerUseCase.Delete`;
+  tenta **todos** os recursos e, se algum falhar, mantém o usuário e responde 503 com quantas VMs/containers
+  ficaram. Front: `/usuarios` com filtro por perfil, `ListCard` + modais (`Modal`) de e-mail e de exclusão.
+  Status pendente/ativo ainda não aparece (adiado; cadastro de alunos em revisão). Depois dos containers, o
+  namespace `u-xxxx` do usuário também é apagado (`ContainerRuntime.DeleteNamespace`); se containers falharem o
+  namespace fica (apagá-lo levaria junto o que ainda está no banco); se só o namespace falhar, o usuário fica e
+  responde 503. Backend sem cluster configurado pula essa etapa.
 
 ## Ordem sugerida para 2026-09-12
 

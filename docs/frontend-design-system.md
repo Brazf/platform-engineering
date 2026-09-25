@@ -86,14 +86,23 @@ Cantos: cartões retos (sem radius); inputs `rounded-[4px]`; botões pílula `ro
 **Listas e detalhes (`form-ui.tsx`)**
 - `ResourceCard({ href, name, description, status, fields, createdAt })` — item de lista clicável.
 - `StatusBadge({ label, phase })`, `Field({ label })`, `DetailHeader({ name, description, status })`.
+- `ListCard({ name, description, badge, fields, actions })` — item de lista **com botões próprios** (não é link),
+  mesmo visual do `ResourceCard`; ações à direita, abaixo de uma divisória. Botões compactos: `FORM.outlineBtn + " h-10 px-5 text-[14px]"`.
+- `Tag` — etiqueta neutra no formato do `StatusBadge`, sem bolinha (ex.: perfil `aluno`/`pesquisador`).
 - `PageNotice({ kind: "info" | "error" })` — carregando / vazio / erro fora dos cartões.
+- Filtro de lista: `Segmented` acima da lista, com a contagem à direita (ex.: `/usuarios`).
 - `CONSOLE.*` — painéis de terminal/logs (cabeçalho cinza `#E5E5E5`).
+
+**Telas de acesso (`access/password-toggle.tsx`)**
+- `PasswordToggle({ visible, onToggle })` — olho dentro do campo de senha; o input usa `type={visible ? "text" : "password"}`.
+  Um estado por campo (senha e confirmação alternam separadamente). Usado em `/` (login) e `/nova-senha`.
 
 **Estrutura (`internal-ui.tsx`)**
 - `InternalHeader`, `InternalBreadcrumb({ label })`, `ActionCard({ icon, label, href, height })` (cards da página inicial).
 
-**Modal**: overlay `fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4`, caixa
-`w-full max-w-[520px] bg-white px-8 pt-6 pb-7` + sombra de cartão; título no estilo de `FormCard title`.
+**Modal**: componente `Modal({ title, children, actions })` (título em CAIXA ALTA, ações centralizadas).
+Confirmação destrutiva: Cancelar em `outlineBtn` + ação em `dangerBtn`, dizendo **o que será perdido** (ex.: contagem de VMs/containers)
+e que não pode ser desfeito. Edição: Cancelar em `dangerBtn` + Salvar em `primaryBtn` (mesma ordem do `FormActions`).
 
 ## 5. Botões
 
@@ -109,7 +118,7 @@ Estado de carregamento troca o texto (`"Salvando..."`) e usa `disabled` (opacida
 ## 6. Ícones e assets
 
 `frontend/public/assets/internal/*.svg|png`, via `next/image`. Ícones do header: círculo `h-10 w-10 rounded-full bg-[#F8F8F8]`,
-SVG 12×14 em azul `#1351B4` (`icon-bell.svg`, `icon-profile.svg`). Ícones de campo em cinza `#888888` (`icon-user.svg`, `icon-email.svg`, `icon-id.svg`).
+SVG 12×14 em azul `#1351B4` (`icon-bell.svg`, `icon-profile.svg`). Ícones de `ActionCard` 30×24 em azul (`icon-user-plus.svg`, `icon-users.svg`). Ícones de campo em cinza `#888888` (`icon-user.svg`, `icon-email.svg`, `icon-id.svg`).
 
 ## 7. Comportamento
 

@@ -106,12 +106,14 @@ export function InternalBreadcrumb({ label }: { label: string }) {
   );
 }
 
-export function ActionCard({ icon, label, href, height }: { icon: "desktop" | "container" | "userPlus"; label: string; href?: string; height: "121" | "134" }) {
+export function ActionCard({ icon, label, href, height }: { icon: "desktop" | "container" | "userPlus" | "users"; label: string; href?: string; height: "121" | "134" }) {
   const iconNode =
     icon === "desktop" ? (
       <Image src="/assets/internal/icon-computador.png" alt="Máquina Virtual" width={27} height={27} className="h-[27px] w-[27px]" />
     ) : icon === "container" ? (
       <Image src="/assets/internal/icon-container.png" alt="Container" width={30} height={30} className="h-[30px] w-[30px]" />
+    ) : icon === "users" ? (
+      <Image src="/assets/internal/icon-users.svg" alt="Usuários cadastrados" width={30} height={24} className="h-6 w-[30px]" />
     ) : (
       <Image src="/assets/internal/icon-user-plus.svg" alt="Cadastrar usuário" width={30} height={24} className="h-6 w-[30px]" />
     );
