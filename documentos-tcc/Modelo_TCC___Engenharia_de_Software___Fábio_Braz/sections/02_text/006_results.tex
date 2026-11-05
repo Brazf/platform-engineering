@@ -1,4 +1,5 @@
 \chapter{Resultados}
+\label{chapter:resultados}
 
 \section{Resultados por objetivo}
 
@@ -8,16 +9,20 @@ Neste capítulo é feito um levantamento dos resultados obtidos frente aos objet
 O portal web, desenvolvido em Next.js, permite ao usuário selecionar entre máquina virtual e contêiner de aplicação, respeitando os limites de CPU, memória e armazenamento definidos pelo seu perfil (aluno ou pesquisador). Esse objetivo foi integralmente atendido.
 
 \subsection{Provisionamento de VMs via Terraform}
-A integração do portal com o Terraform para a criação e a remoção de máquinas virtuais no Proxmox VE foi implementada e validada tanto por testes de fumaça quanto pelo uso ponta a ponta pelo portal, conforme descrito no Capítulo~4. Esse objetivo foi integralmente atendido.
+A integração do portal com o Terraform para a criação e a remoção de máquinas virtuais no Proxmox VE foi implementada e validada tanto por testes de fumaça quanto pelo uso ponta a ponta pelo portal, conforme descrito no Capítulo~\ref{chapter:experimentos}. Esse objetivo foi integralmente atendido.
 
 \subsection{Automação de configuração: de Ansible a contêineres nativos}
-O objetivo original de automação de configuração via Ansible — instalação de \textit{software}, bancos de dados e dependências dentro de uma VM genérica — não foi implementado na forma originalmente proposta. Em seu lugar, a plataforma passou a oferecer o provisionamento nativo de contêineres de aplicação em um cluster Kubernetes, o que resolve o mesmo problema de fundo (disponibilizar \textit{software} pronto para uso sem intervenção manual do usuário) por um caminho arquiteturalmente mais próximo das práticas atuais de orquestração de contêineres. Considera-se esse objetivo atendido por uma via alternativa à originalmente prevista.
+\label{sec:resultado_ansible}
+O objetivo original de automação de configuração via Ansible — instalação de \textit{software}, bancos de dados e dependências dentro de uma VM genérica — não foi implementado na forma originalmente proposta. Em seu lugar, a plataforma passou a oferecer o provisionamento nativo de contêineres de aplicação em um cluster Kubernetes, o que resolve o mesmo problema de fundo (disponibilizar \textit{software} pronto para uso sem intervenção manual do usuário) por um caminho arquiteturalmente mais próximo das práticas atuais de orquestração de contêineres. A configuração inicial das VMs Ubuntu (usuário, senha e chaves SSH) é feita por \textit{cloud-init}, e o Ansible não é utilizado na plataforma. Considera-se esse objetivo atendido por uma via alternativa à originalmente prevista.
 
 \subsection{Acesso interativo aos ambientes}
 O acesso via terminal web foi implementado tanto para máquinas virtuais (proxy WebSocket para o protocolo \textit{termproxy} do Proxmox) quanto para contêineres (\textit{exec} via cluster Kubernetes), superando o escopo originalmente previsto no pré-projeto, que não especificava esse mecanismo de acesso.
 
 \subsection{Redução de tempo, autonomia e padronização}
-Observou-se, ao longo do uso da plataforma nos experimentos do Capítulo~5, que o provisionamento de um ambiente — VM ou contêiner — ocorre de forma autônoma pelo usuário, sem intervenção de uma equipe de infraestrutura, e em poucos minutos, contra um processo manual que exigiria a criação e configuração individual de cada recurso diretamente no Proxmox ou no cluster. O uso de Terraform como fonte declarativa da infraestrutura de VMs também contribui para a padronização e a reprodutibilidade dos ambientes criados.
+Observou-se, ao longo do uso da plataforma nos experimentos do Capítulo~\ref{chapter:experimentos}, que o provisionamento de um ambiente — VM ou contêiner — ocorre de forma autônoma pelo usuário, sem intervenção de uma equipe de infraestrutura, e em poucos minutos, contra um processo manual que exigiria a criação e configuração individual de cada recurso diretamente no Proxmox ou no cluster. O uso de Terraform como fonte declarativa da infraestrutura de VMs também contribui para a padronização e a reprodutibilidade dos ambientes criados.
+
+\subsection{Gestão de usuários}
+O controle de acesso por perfil, o cadastro restrito a pesquisadores, a tela de perfil e a gestão de usuários foram implementados e validados conforme o Capítulo~\ref{chapter:experimentos}, atendendo ao requisito de limites de recursos distintos por perfil.
 
 \subsection{Acesso a GPU}
 O acesso a GPU para cargas de trabalho de IA/ML, previsto como objetivo específico no pré-projeto, não foi implementado até o presente momento, permanecendo como trabalho futuro, conforme discutido no Capítulo~\ref{chapter:conclusoes_trabalhos_futuros}.

@@ -78,6 +78,29 @@
 \title{Plataforma de Engenharia Self-Service: Abstraindo a Complexidade da Infraestrutura para Pesquisa e Inovação}
 \author{Fábio Braz Ferreira}
 \date{DD/MM/AAAA}
+% Espaço reservado para figura: \figplaceholder{rótulo}{legenda}{o que inserir}{fonte}
+% Para trocar pela imagem real, substitua o \fbox por \includegraphics[width=0.9\textwidth]{images/arquivo.png}
+\newcommand{\figplaceholder}[4]{%
+  \begin{figure}[htb]
+    \centering
+    \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\color{gray}[INSERIR IMAGEM]\\[2mm]\footnotesize #3}}
+    \caption{#2}
+    \label{#1}
+    \par\small Fonte: #4.
+  \end{figure}%
+}
+
+% Figura real: \figimg{rótulo}{legenda}{arquivo em images/ (sem extensão)}{fonte}
+\newcommand{\figimg}[4]{%
+  \begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.95\textwidth]{images/#3}
+    \caption{#2}
+    \label{#1}
+    \par\small Fonte: #4.
+  \end{figure}%
+}
+
 \newcommand{\thecourse}{Bacharelado em Engenharia de Software}
 \newcommand{\thesupervisor}{Elton Bezerra Torres}
 \newcommand{\thelocal}{Belo Jardim, Pernambuco}

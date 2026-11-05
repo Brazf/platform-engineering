@@ -1,40 +1,137 @@
 \chapter{Fundamentação teórica}
 \label{chapter:fundamentacao_teorica}
 
-Para uma melhor compreensão da implementação e da metodologia, é necessário explicar os principais conceitos e ferramentas que fundamentam o desenvolvimento da plataforma proposta.
+Para uma melhor compreensão da implementação e da metodologia, é necessário explicar os principais conceitos e ferramentas que fundamentam o desenvolvimento da plataforma proposta. Este capítulo parte da base tecnológica — virtualização e conteinerização —, passa pela orquestração de contêineres e pela Infraestrutura como Código, e conclui com a gestão de plataforma e as \textit{Internal Developer Platforms}, que motivam a solução desenvolvida.
 
 %--------------------------------Seção 2.1--------------------------------%
 
-\section{Infraestrutura como Código e Provisionamento Automatizado}
+\section{Virtualização e Conteinerização}
+\label{sec:virtualizacao_conteinerizacao}
 
-\par Infraestrutura como Código (\textit{Infrastructure as Code} — IaC) é a prática de gerenciar e provisionar infraestrutura computacional por meio de arquivos de configuração legíveis por máquina, em vez de processos manuais e interativos. Essa abordagem permite versionar, revisar e reproduzir ambientes de forma consistente, reduzindo a variação entre ambientes e a incidência de erros humanos \cite{KunalBhandari}.\\
-\par Estudos sobre automação de infraestrutura demonstram que o provisionamento manual de ambientes computacionais é um processo demorado e sujeito a falhas, sendo a automação de ponta a ponta um fator determinante para a redução do tempo de entrega de recursos \cite{Sandobalín}. De forma semelhante, abordagens baseadas em modelos para o provisionamento de \textit{hardware} têm sido propostas como forma de reduzir a intervenção manual e padronizar a criação de ambientes de TI \cite{Gokhale}.
+\subsection{Virtualização e \textit{hypervisors}}
 
-\subsection{Terraform}
-O Terraform é uma ferramenta de código aberto de Infraestrutura como Código, mantida pela HashiCorp, que permite declarar recursos de infraestrutura (como máquinas virtuais, redes e discos) em arquivos de configuração e aplicá-los de forma idempotente contra provedores de nuvem ou de virtualização \textit{on-premises} \cite{terraformDocs:online}. O Terraform mantém um arquivo de estado que reflete os recursos efetivamente provisionados, permitindo identificar divergências entre a configuração declarada e o estado real da infraestrutura, e aplicar apenas as mudanças necessárias a cada execução.
+\par Virtualização é a técnica que permite abstrair os recursos físicos de um computador (processador, memória, armazenamento e rede) e dividi-los entre múltiplos ambientes isolados, chamados máquinas virtuais (VMs), cada uma executando seu próprio sistema operacional como se fosse uma máquina física independente. O componente responsável por criar, executar e isolar as máquinas virtuais é o \textit{hypervisor}, também chamado monitor de máquina virtual.\\
+\par Os \textit{hypervisors} são tradicionalmente classificados em dois tipos:
+\begin{itemize}
+    \item \textbf{Tipo 1 (\textit{bare metal})}: executa diretamente sobre o \textit{hardware}, sem um sistema operacional intermediário, o que reduz a sobrecarga e favorece desempenho e isolamento. É o modelo típico de ambientes de servidor e de centros de dados. Exemplos: KVM, Xen, VMware ESXi e Microsoft Hyper-V;
+    \item \textbf{Tipo 2 (\textit{hosted})}: executa como uma aplicação sobre um sistema operacional já instalado, que passa a intermediar o acesso ao \textit{hardware}. É mais simples de instalar e voltado a uso em estações de trabalho. Exemplos: Oracle VirtualBox e VMware Workstation.
+\end{itemize}
+
+\figimg{fig:hypervisor_tipos}{Comparação entre \textit{hypervisors} tipo 1 e tipo 2}{hypervisor_tipos}{elaboração própria}
+
+\subsection{Proxmox VE}
+\label{sec:proxmox}
+
+O Proxmox VE (\textit{Virtual Environment}) é uma plataforma de virtualização de código aberto, baseada em Debian GNU/Linux, que combina o KVM (\textit{Kernel-based Virtual Machine}) para máquinas virtuais e o LXC para contêineres do sistema operacional, oferecendo ainda gerenciamento de armazenamento, rede, \textit{pools} de recursos e controle de acesso em uma única solução \cite{proxmoxDocs:online}. Como o KVM é incorporado ao próprio núcleo do Linux e executa as VMs diretamente sobre o \textit{hardware}, o Proxmox VE é geralmente enquadrado como um ambiente de \textit{hypervisor} tipo 1.\\
+\par Os servidores que executam o Proxmox VE são chamados de nós, e um ou mais nós podem formar um \textit{cluster} administrado por uma interface web única. O Proxmox VE expõe uma API REST completa, autenticada por \textit{tokens}, por meio da qual é possível automatizar operações como criação de VMs, consulta de status e acesso a terminal \cite{proxmoxDocs:online}. Essa característica viabiliza a integração com ferramentas externas, como o Terraform, permitindo que a criação de máquinas virtuais seja declarada como código em vez de realizada manualmente pela interface web.
+
+\figimg{fig:proxmox_arquitetura}{Arquitetura do Proxmox VE}{proxmox_arquitetura}{elaboração própria, com base em \cite{proxmoxDocs:online}}
+
+\subsection{Conteinerização}
+\label{sec:conteinerizacao}
+
+\par A conteinerização é uma forma de virtualização em nível de sistema operacional: em vez de virtualizar o \textit{hardware} e executar um sistema operacional completo por ambiente, os contêineres compartilham o núcleo (\textit{kernel}) do sistema hospedeiro e isolam apenas os processos, o sistema de arquivos e os recursos de cada aplicação, por meio de mecanismos do núcleo Linux como \textit{namespaces} e \textit{cgroups}.\\
+\par Em comparação com as máquinas virtuais, os contêineres são mais leves, iniciam em segundos e permitem maior densidade de ambientes por servidor, mas oferecem isolamento mais fraco, já que dependem do núcleo compartilhado. Já as VMs entregam isolamento forte e permitem sistemas operacionais distintos do hospedeiro, ao custo de maior consumo de recursos e de tempo de inicialização. O Quadro~\ref{tab:vm_vs_container} resume as diferenças.
+
+\begin{table}[htb]
+    \centering
+    \caption{Comparação entre máquinas virtuais e contêineres}
+    \label{tab:vm_vs_container}
+    \begin{tabularx}{\textwidth}{|l|X|X|}
+        \hline
+        \textbf{Característica} & \textbf{Máquina virtual} & \textbf{Contêiner} \\ \hline
+        Isolamento & Forte (SO completo por VM) & Em nível de processo (\textit{kernel} compartilhado) \\ \hline
+        Sistema operacional & Próprio, independente do hospedeiro & Compartilha o \textit{kernel} do hospedeiro \\ \hline
+        Tempo de inicialização & Minutos & Segundos \\ \hline
+        Consumo de recursos & Alto & Baixo \\ \hline
+        Uso típico & Ambientes completos e persistentes & Aplicações isoladas e efêmeras, baseadas em imagens \\ \hline
+    \end{tabularx}
+    \par\small Fonte: elaborado pelo autor.
+\end{table}
+
+\figimg{fig:vm_vs_container}{Arquitetura de máquinas virtuais e de contêineres}{vm_vs_container}{elaboração própria}
+
+\subsection{Docker}
+\label{sec:docker}
+
+O Docker é a plataforma que popularizou o uso de contêineres ao oferecer um formato padronizado de empacotamento e distribuição: a \textit{imagem}, que reúne a aplicação e todas as suas dependências, e que pode ser executada de forma idêntica em qualquer máquina com um \textit{container runtime} \cite{dockerDocs:online}. Entre as principais vantagens trazidas pelo Docker estão a portabilidade e a reprodutibilidade dos ambientes (``funciona na minha máquina'' deixa de ser um problema), a construção declarativa de imagens por meio de um \textit{Dockerfile}, o versionamento e a distribuição de imagens por meio de registros (\textit{registries}, como o Docker Hub) e a disponibilidade de imagens prontas para serviços comuns, como bancos de dados, o que permite colocar um serviço em execução com um único comando.
+
+\figimg{fig:docker_fluxo}{Fluxo de construção e execução de contêineres com Docker}{docker_fluxo}{elaboração própria, com base em \cite{dockerDocs:online}}
 
 %------------------------------- Seção 2.2 --------------------------------------------%
 
-\section{Engenharia de Plataforma e Infraestrutura Self-Service}
+\section{Orquestração de Contêineres}
+\label{sec:orquestracao}
 
-\par A Engenharia de Plataforma (\textit{Platform Engineering}) é a disciplina que se concentra em projetar e construir ferramentas, portais e fluxos de trabalho que reduzam a carga cognitiva de desenvolvedores e pesquisadores no consumo de infraestrutura, oferecendo capacidades de autoatendimento (\textit{self-service}) sobre uma base de automação subjacente \cite{Sandobalín}. O objetivo central dessa abordagem é permitir que o usuário final solicite e obtenha um ambiente pronto para uso sem depender diretamente de uma equipe de operações para cada solicitação.\\
-\par Pesquisas sobre o impacto do desenvolvimento de infraestrutura na produtividade indicam que a disponibilidade de recursos computacionais sob demanda, com baixo tempo de espera, está diretamente associada a ganhos de eficiência em ambientes de pesquisa e desenvolvimento \cite{Muhammad}. Nesse sentido, plataformas self-service buscam otimizar a chamada Experiência do Pesquisador (\textit{Researcher Experience} — RX), termo que descreve a facilidade com que um pesquisador consegue obter e utilizar os recursos computacionais necessários às suas atividades, sem se envolver com os detalhes de baixo nível da infraestrutura subjacente \cite{Minoru}.
+\subsection{Por que orquestrar contêineres}
 
-\subsection{Modelos de recursos: máquinas virtuais e contêineres}
-Uma plataforma self-service de infraestrutura pode expor ao usuário diferentes modelos de recurso computacional. Máquinas virtuais oferecem isolamento completo em nível de sistema operacional, sendo adequadas a cargas de trabalho que exigem um ambiente completo e persistente. Contêineres de aplicação, por outro lado, compartilham o núcleo do sistema operacional do hospedeiro e são orquestrados por um sistema de gerenciamento de cargas de trabalho, sendo mais adequados a aplicações efêmeras ou que já seguem um modelo de implantação baseado em imagens.
+\par Executar um único contêiner é simples, mas operar muitos contêineres em produção levanta problemas que o \textit{container runtime} sozinho não resolve: distribuir os contêineres entre vários servidores, reiniciá-los quando falham, escalar o número de réplicas conforme a demanda, expor os serviços na rede, isolar usuários ou equipes entre si e limitar o consumo de recursos de cada um. A orquestração de contêineres automatiza essas tarefas por meio de uma descrição declarativa do estado desejado, que o orquestrador trabalha continuamente para manter \cite{kubernetesDocs:online}.
+
+\subsection{Kubernetes}
+\label{sec:kubernetes}
+
+O Kubernetes é uma plataforma de orquestração de contêineres de código aberto que automatiza a implantação, o escalonamento e o gerenciamento de aplicações em contêineres \cite{kubernetesDocs:online}. Sua arquitetura divide-se em um \textit{control plane} (servidor de API, \textit{scheduler}, gerenciador de controladores e o repositório de estado \textit{etcd}) e em nós de trabalho (\textit{worker nodes}), onde o \textit{kubelet} executa os \textit{pods} — a menor unidade implantável, que agrupa um ou mais contêineres. Entre seus principais conceitos estão o \textit{namespace}, que permite isolar logicamente recursos de diferentes usuários ou equipes dentro do mesmo \textit{cluster} e aplicar quotas de recursos; o \textit{Service}, que dá um endereço estável a um conjunto de \textit{pods}; o \textit{Ingress}, responsável por rotear tráfego HTTP externo até os serviços internos com base em regras de domínio; e o \textit{NodePort}, que expõe um serviço em uma porta fixa de cada nó do \textit{cluster}, sendo útil para protocolos não HTTP.
+
+\figimg{fig:kubernetes_arquitetura}{Arquitetura do Kubernetes}{kubernetes_arquitetura}{elaboração própria, com base em \cite{kubernetesDocs:online}}
+
+\subsection{K3s}
+\label{sec:k3s}
+
+O K3s é uma distribuição leve do Kubernetes, certificada e mantida pela Rancher/SUSE, empacotada em um único binário de poucas dezenas de megabytes, voltada para ambientes com recursos computacionais restritos, para cenários de borda (\textit{edge}) e para laboratórios \cite{k3sDocs:online}. Mantém a compatibilidade com a API padrão do Kubernetes e com as mesmas ferramentas de administração (como o \texttt{kubectl} e bibliotecas cliente), mas simplifica a arquitetura: o \textit{control plane} e o agente rodam em um único processo, o \textit{etcd} é substituído por padrão por um banco SQLite embarcado (com opção de \textit{etcd} em configurações de alta disponibilidade) e componentes como o \textit{Ingress controller} (Traefik) e o balanceador de carga de serviços já vêm incluídos. O Quadro~\ref{tab:k8s_vs_k3s} resume as diferenças.
+
+\begin{table}[htb]
+    \centering
+    \caption{Comparação entre Kubernetes e K3s}
+    \label{tab:k8s_vs_k3s}
+    \begin{tabularx}{\textwidth}{|l|X|X|}
+        \hline
+        \textbf{Aspecto} & \textbf{Kubernetes} & \textbf{K3s} \\ \hline
+        Distribuição & Componentes separados & Binário único \\ \hline
+        Armazenamento de estado & \textit{etcd} & SQLite embarcado (padrão) ou \textit{etcd} \\ \hline
+        Consumo de recursos & Alto & Baixo \\ \hline
+        Instalação & Mais complexa & Um comando \\ \hline
+        Compatibilidade com a API & Padrão & Total \\ \hline
+        Uso típico & Produção em larga escala & Laboratório, \textit{edge}, \textit{cluster} pequeno \\ \hline
+    \end{tabularx}
+    \par\small Fonte: elaborado pelo autor, com base em \cite{kubernetesDocs:online} e \cite{k3sDocs:online}.
+\end{table}
 
 %----------------------------------------- Seção 2.3 ------------------------------------------------
 
-\section{Virtualização e Orquestração de Contêineres}
+\section{Infraestrutura como Código}
+\label{sec:iac}
 
-\subsection{Proxmox VE}
-O Proxmox VE (\textit{Virtual Environment}) é uma plataforma de virtualização de código aberto que combina KVM (\textit{Kernel-based Virtual Machine}) para máquinas virtuais e LXC para contêineres do sistema operacional, oferecendo uma API REST completa para automação de todas as operações de gerenciamento, como criação, consulta de status e acesso a terminal das VMs \cite{proxmoxDocs:online}. Por expor uma API REST e suportar autenticação via \textit{token}, o Proxmox VE viabiliza a integração com ferramentas de automação externas, como o Terraform, permitindo que a criação de máquinas virtuais seja declarada como código em vez de realizada manualmente pela interface web.
+\subsection{O problema do provisionamento manual}
 
-\subsection{Kubernetes e k3s}
-O Kubernetes é uma plataforma de orquestração de contêineres de código aberto que automatiza a implantação, o escalonamento e o gerenciamento de aplicações em contêineres \cite{kubernetesDocs:online}. Entre seus principais conceitos estão o \textit{namespace}, que permite isolar logicamente recursos de diferentes usuários ou equipes dentro do mesmo cluster; o \textit{Ingress}, responsável por rotear tráfego HTTP externo até os serviços internos com base em regras de domínio; e o \textit{NodePort}, que expõe um serviço em uma porta fixa de cada nó do cluster, sendo útil para protocolos não HTTP.\\
-\par O k3s é uma distribuição leve do Kubernetes, empacotada em um único binário, voltada para ambientes com recursos computacionais mais restritos ou para cenários de borda (\textit{edge}), mantendo compatibilidade com a API padrão do Kubernetes e permitindo o uso das mesmas ferramentas de administração do ecossistema.
+\par O provisionamento manual de infraestrutura — criar máquinas virtuais, configurar redes e instalar \textit{software} por meio de interfaces gráficas ou comandos executados à mão — é demorado, difícil de documentar e pouco reprodutível: dois ambientes criados pelo mesmo procedimento tendem a divergir, e refazer um ambiente exige repetir todo o trabalho. Estudos sobre automação de infraestrutura demonstram que o provisionamento manual é um processo demorado e sujeito a falhas, sendo a automação de ponta a ponta um fator determinante para a redução do tempo de entrega de recursos \cite{Sandobalín}. De forma semelhante, abordagens baseadas em modelos para o provisionamento de \textit{hardware} têm sido propostas como forma de reduzir a intervenção manual e padronizar a criação de ambientes de TI \cite{Gokhale}.\\
+\par Infraestrutura como Código (\textit{Infrastructure as Code} — IaC) é a prática de gerenciar e provisionar infraestrutura por meio de arquivos de configuração legíveis por máquina, em vez de processos manuais e interativos. Essa abordagem permite versionar, revisar e reproduzir ambientes de forma consistente, reduzindo a variação entre ambientes e a incidência de erros humanos \cite{KunalBhandari}.
+
+\subsection{Terraform}
+\label{sec:terraform}
+
+O Terraform é uma ferramenta de código aberto de Infraestrutura como Código, mantida pela HashiCorp, que permite declarar recursos de infraestrutura (como máquinas virtuais, redes e discos) em arquivos de configuração e aplicá-los de forma idempotente contra provedores de nuvem ou de virtualização \textit{on-premises} \cite{terraformDocs:online}. A comunicação com cada plataforma é feita por \textit{providers}; neste trabalho, o \textit{provider} \texttt{bpg/proxmox} traduz a configuração declarada em chamadas à API do Proxmox VE. O Terraform mantém um arquivo de estado que reflete os recursos efetivamente provisionados, permitindo identificar divergências entre a configuração declarada e o estado real da infraestrutura, e aplicar apenas as mudanças necessárias a cada execução. O ciclo de uso típico consiste em escrever a configuração, planejar as mudanças (\texttt{plan}) e aplicá-las (\texttt{apply}) ou destruí-las (\texttt{destroy}).
+
+\figimg{fig:terraform_fluxo}{Fluxo de trabalho do Terraform}{terraform_fluxo}{elaboração própria, com base em \cite{terraformDocs:online}}
+
+\subsection{\textit{Cloud-init} e Ansible}
+\label{sec:cloudinit_ansible}
+
+\par Enquanto o Terraform cria a infraestrutura, a configuração do sistema operacional dentro dela é tratada por outras ferramentas. O \textit{cloud-init} é o padrão de fato para a inicialização de instâncias de nuvem: na primeira inicialização, a imagem lê dados fornecidos pelo provedor (usuário, senha, chaves SSH, rede, pacotes e \textit{scripts}) e configura a máquina automaticamente, sem intervenção manual \cite{cloudInitDocs:online}. O Proxmox VE oferece suporte nativo a \textit{cloud-init}, o que permite clonar um \textit{template} de imagem e personalizá-lo a cada VM criada.\\
+\par O Ansible, por sua vez, é uma ferramenta de automação de configuração que, a partir de \textit{playbooks} escritos em YAML e executados sem a instalação de agentes (via SSH), instala pacotes, ajusta arquivos e gerencia serviços em máquinas já existentes \cite{ansibleDocs:online}. Sua função é complementar à do Terraform: o Terraform provisiona os recursos e o Ansible os configura. Neste trabalho, o Ansible foi cogitado no pré-projeto, mas não foi adotado na solução final (Seção~\ref{sec:resultado_ansible}); a configuração inicial das VMs é feita por \textit{cloud-init}, e a instalação de \textit{software} é feita por meio de contêineres.
 
 %----------------------------------------- Seção 2.4 ------------------------------------------------
+
+\section{Gestão de Plataforma e \textit{Internal Developer Platforms}}
+\label{sec:idp}
+
+\par A Engenharia de Plataforma (\textit{Platform Engineering}) é a disciplina que se concentra em projetar e construir ferramentas, portais e fluxos de trabalho que reduzam a carga cognitiva de desenvolvedores e pesquisadores no consumo de infraestrutura, oferecendo capacidades de autoatendimento (\textit{self-service}) sobre uma base de automação subjacente \cite{Sandobalín}. O objetivo central dessa abordagem é permitir que o usuário final solicite e obtenha um ambiente pronto para uso sem depender diretamente de uma equipe de operações para cada solicitação.\\
+\par O produto dessa disciplina é a \textit{Internal Developer Platform} (IDP): uma camada interna que reúne, em um portal ou em uma API, o catálogo de recursos disponíveis, as regras de governança (como quotas e permissões) e a automação que os provisiona. Exemplos conhecidos são o Backstage, criado pelo Spotify e hoje mantido pela CNCF, que oferece um portal de catálogo de serviços e modelos de criação de projetos \cite{backstageDocs:online}; e plataformas comerciais como Port, Humanitec e Red Hat Developer Hub. Em comum, essas soluções oferecem um ponto único de entrada e ocultam a complexidade da infraestrutura subjacente.\\
+\par Pesquisas sobre o impacto do desenvolvimento de infraestrutura na produtividade indicam que a disponibilidade de recursos computacionais sob demanda, com baixo tempo de espera, está diretamente associada a ganhos de eficiência em ambientes de pesquisa e desenvolvimento \cite{Muhammad}. Nesse sentido, plataformas \textit{self-service} buscam otimizar a chamada Experiência do Pesquisador (\textit{Researcher Experience} — RX), termo que descreve a facilidade com que um pesquisador consegue obter e utilizar os recursos computacionais necessários às suas atividades, sem se envolver com os detalhes de baixo nível da infraestrutura subjacente \cite{Minoru}.\\
+\par Este trabalho adapta esse conceito ao contexto acadêmico: o ProxLab é uma \textit{Internal Research Platform} (IRP), uma plataforma interna voltada a pesquisadores e alunos, que lhes permite provisionar máquinas virtuais e contêineres de forma automatizada e autônoma, dentro de limites definidos por perfil, sobre a infraestrutura do laboratório.
+
+\figimg{fig:idp_conceito}{Conceito de \textit{Internal Developer Platform} (adaptado para a IRP)}{idp_conceito}{elaboração própria}
+
+%----------------------------------------- Seção 2.5 ------------------------------------------------
 
 \section{Autenticação e Autorização}
 

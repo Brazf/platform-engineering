@@ -1,9 +1,9 @@
 \chapter{Implementação}
+\label{chapter:implementacao}
 
 O objetivo deste capítulo é descrever como a Plataforma de Engenharia Self-Service — ProxLab — foi implementada, detalhando a arquitetura do \textit{backend}, os fluxos de provisionamento de máquinas virtuais e de contêineres, e os mecanismos de autenticação e acesso remoto oferecidos ao usuário final.
 
-% TODO: inserir aqui uma figura com o diagrama de arquitetura da plataforma
-% (\begin{figure} ... \includegraphics{images/arquitetura.png} ... \end{figure})
+\figimg{fig:arquitetura_proxlab}{Arquitetura geral do ProxLab}{arquitetura_proxlab}{elaboração própria}
 
 \section{Arquitetura em camadas}
 
@@ -18,6 +18,8 @@ O \textit{backend} foi desenvolvido em Go, utilizando o \textit{framework} web G
 
 Essa separação é reforçada por uma regra de desenvolvimento adotada no projeto: nenhuma lógica de negócio deve residir no ponto de entrada da aplicação, e nenhuma chamada ao GORM deve ocorrer diretamente em um \textit{handler}.
 
+\figimg{fig:camadas_backend}{Arquitetura em camadas do \textit{backend}}{camadas_backend}{elaboração própria}
+
 \section{Provisionamento de máquinas virtuais}
 
 O fluxo de criação de uma máquina virtual segue o caminho \textit{Handler} \(\rightarrow\) \textit{UseCase} \(\rightarrow\) \textit{Provisioner} \(\rightarrow\) \texttt{terraform-exec} \(\rightarrow\) Proxmox VE. Ao receber uma solicitação de criação de VM, o \textit{backend} gera um arquivo de configuração Terraform (\texttt{main.tf}) em um \textit{workspace} isolado por identificador único de VM, utilizando o \textit{provider} \texttt{bpg/proxmox}, e executa o Terraform por meio da biblioteca \texttt{terraform-exec}. As credenciais de acesso ao Proxmox são fornecidas apenas via variáveis de ambiente do processo, nunca gravadas em arquivo de configuração.\\
@@ -25,6 +27,8 @@ O fluxo de criação de uma máquina virtual segue o caminho \textit{Handler} \(
 \par Máquinas virtuais Ubuntu são criadas a partir da clonagem completa de um \textit{template} \textit{cloud-init} previamente preparado no Proxmox, já nascendo ligadas e com um usuário padrão cuja senha é gerada de forma aleatória por VM e devolvida uma única vez na resposta da criação, nunca persistida em banco de dados. Máquinas virtuais de outros sistemas operacionais seguem o fluxo de VM vazia, cabendo ao usuário realizar a instalação do sistema operacional.\\
 
 \par Operações de consulta de status, ligar e desligar uma VM já existente não passam pelo Terraform: são realizadas diretamente contra a API REST do Proxmox VE, por meio de um cliente HTTP dedicado (\textit{ProxmoxClient}), autenticado via \textit{token} de API.
+
+\figimg{fig:tela_criar_vm}{Tela de criação de máquina virtual no portal}{front-tela-criar-vm}{captura de tela do ProxLab}
 
 \section{Provisionamento de contêineres de aplicação}
 
@@ -34,10 +38,24 @@ Contêineres de aplicação seguem um fluxo distinto: \textit{Handler} \(\righta
 
 \par A exposição de rede de um contêiner depende do tipo de acesso solicitado pelo usuário: quando o contêiner expõe uma porta HTTP e um domínio de \textit{Ingress} está configurado, o acesso é feito por meio de um subdomínio dedicado; quando o acesso é via TCP, ou quando não há domínio configurado, o serviço é exposto por meio de \textit{NodePort}, em uma porta na faixa 30000–32767 do nó do cluster. Um contêiner também pode ser criado apenas para acesso via terminal, sem nenhuma porta de rede exposta.
 
-\section{Autenticação}
+\figimg{fig:tela_criar_container}{Tela de criação de contêiner de aplicação no portal}{front-tela-criar-container}{captura de tela do ProxLab}
 
-O acesso à plataforma é protegido por autenticação baseada em JWT. Após o \textit{login}, o token é armazenado no \texttt{localStorage} do navegador e enviado em todas as requisições subsequentes por meio do cabeçalho \texttt{Authorization}. Conexões WebSocket, por não suportarem cabeçalhos HTTP customizados na negociação inicial, recebem o token por meio de um parâmetro de consulta (\textit{query param}) na URL de conexão. Não há autocadastro de usuários: o cadastro de novos usuários exige um token JWT de um usuário com perfil \textit{pesquisador}.
+\section{Autenticação e gestão de usuários}
+
+O acesso à plataforma é protegido por autenticação baseada em JWT. Após o \textit{login}, o token é armazenado no \texttt{localStorage} do navegador e enviado em todas as requisições subsequentes por meio do cabeçalho \texttt{Authorization}. Conexões WebSocket, por não suportarem cabeçalhos HTTP customizados na negociação inicial, recebem o token por meio de um parâmetro de consulta (\textit{query param}) na URL de conexão. Não há autocadastro de usuários: o cadastro de novos usuários exige um token JWT de um usuário com perfil \textit{pesquisador}. O perfil define os limites de recursos e o \textit{pool} do Proxmox em que as VMs são criadas, sempre decidido pelo \textit{backend} e nunca pelo \textit{payload} da requisição. Os usuários podem alterar seu nome e senha em uma tela de perfil, e o pesquisador dispõe de uma tela de gestão que lista, filtra por perfil, altera o e-mail e exclui usuários; a exclusão remove antes todas as VMs e contêineres do usuário.
+
+\figimg{fig:tela_login}{Tela de \textit{login} da plataforma}{front-tela-login(geral)}{captura de tela do ProxLab}
+
+\figimg{fig:tela_usuarios}{Tela de usuários cadastrados (visão do pesquisador)}{front-tela-usuarios(pesquisador)}{captura de tela do ProxLab}
 
 \section{Terminal web}
 
 O acesso interativo aos recursos provisionados é oferecido diretamente pelo navegador, sem a necessidade de um cliente SSH local. Para máquinas virtuais, o \textit{backend} atua como um proxy WebSocket entre o navegador e o protocolo \textit{termproxy} do Proxmox VE, reproduzindo o seu \textit{handshake} específico: uma primeira mensagem de autenticação no formato \texttt{"<usuário>:<ticket>\textbackslash n"}, respondida com \texttt{OK}, seguida do enquadramento de dados de teclado e de redimensionamento de terminal segundo o protocolo do Proxmox. Para contêineres, o acesso a terminal é feito por meio da operação de \textit{exec} do próprio cluster Kubernetes, sem a necessidade de um protocolo intermediário.
+
+\figimg{fig:terminal_web}{Terminal web de uma máquina virtual Ubuntu no navegador}{front-tela-terminal-web-vm}{captura de tela do ProxLab}
+
+\section{Infraestrutura como código e configuração inicial}
+
+A infraestrutura de máquinas virtuais é definida como código: cada VM possui seu próprio \textit{workspace} Terraform, de modo que criar ou destruir um recurso equivale a aplicar ou destruir uma configuração versionável e reprodutível. A configuração inicial das VMs Ubuntu (usuário, senha e chaves SSH) é entregue por \textit{cloud-init}, a partir do \textit{template} clonado. Não é utilizado o Ansible: a instalação de \textit{software} é oferecida por meio de contêineres de aplicação.
+
+\figimg{fig:terraform_main_tf}{Exemplo de configuração Terraform gerada pelo \textit{backend}}{terraform_main_tf}{elaboração própria (exemplo ilustrativo baseado no \textit{template} do \textit{backend})}

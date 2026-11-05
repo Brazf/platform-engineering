@@ -1,31 +1,61 @@
 \chapter{Metodologia}
+\label{chapter:metodologia}
 
-Este trabalho adotou a abordagem de Prova de Conceito (PoC) para validar a viabilidade técnica e prática de uma Plataforma de Engenharia Self-Service voltada à automação da infraestrutura virtualizada \textit{on-premises}. A PoC foi conduzida de maneira incremental, com o sistema evoluindo em fases sucessivas, cada uma agregando uma capacidade completa e testável à plataforma.
+Este capítulo descreve, em alto nível, como o trabalho foi conduzido: a classificação da pesquisa, a elicitação dos requisitos, as etapas de desenvolvimento da solução e a forma de validação. Os detalhes técnicos do que foi construído são apresentados no Capítulo~\ref{chapter:implementacao}.
 
-\clearpage
+\section{Caracterização da pesquisa}
 
-\section{Etapas de Desenvolvimento}
+Este trabalho adotou a abordagem de Prova de Conceito (PoC), em um estudo de caso aplicado ao ambiente de virtualização \textit{on-premises} de um laboratório acadêmico, para validar a viabilidade técnica e prática de uma Plataforma de Engenharia Self-Service (\textit{Internal Research Platform}) voltada à automação da infraestrutura virtualizada. O objetivo geral é o descrito na Seção~1.1: automatizar e simplificar o provisionamento de máquinas virtuais e contêineres de aplicação, abstraindo a complexidade técnica para o usuário final.\\
+\par A PoC foi conduzida de maneira incremental, com o sistema evoluindo em fases sucessivas, cada uma agregando uma capacidade completa e testável à plataforma. A escolha se justifica por tratar-se de uma solução que integra múltiplas ferramentas de infraestrutura (Proxmox, Terraform, Kubernetes) em um único portal \textit{self-service}, cujo objetivo principal é validar a viabilidade e os benefícios dessa integração de forma prática e demonstrável. O desenvolvimento incremental permitiu identificar rapidamente obstáculos técnicos — como a necessidade de abandonar o Ansible em favor de uma orquestração nativa em Kubernetes para contêineres — e ajustar a arquitetura ao longo do trabalho.
 
-O desenvolvimento foi dividido nas seguintes fases:
+\section{Elicitação de requisitos}
+\label{sec:elicitacao}
 
-\subsection{Autenticação e usuários}
-Foi implementado o mecanismo de autenticação da plataforma, baseado em JWT, com dois perfis de usuário: \textit{aluno}, com limites de recursos menores, e \textit{pesquisador}, com limites maiores. As permissões de cada perfil no Proxmox VE são configuradas externamente à aplicação.
+% TODO(autor): confirmar/ajustar como o levantamento foi feito de fato (reuniões com o orientador, conversa com
+% pesquisadores/alunos do laboratório, observação do processo atual de solicitação de VMs) e citar datas, se houver.
+Os requisitos foram levantados a partir do problema observado no ambiente do laboratório — a solicitação de máquinas virtuais depende de interação direta com quem administra o Proxmox VE — e das definições do pré-projeto e das reuniões de orientação. Definiram-se dois perfis de usuário, com limites de recursos distintos: o \textit{aluno}, com limites menores, e o \textit{pesquisador}, com limites maiores e responsável pelo cadastro de novos usuários. O Quadro~\ref{tab:requisitos} resume os principais requisitos identificados.
 
-\subsection{CRUD de máquinas virtuais no Proxmox}
-Foi implementada a integração inicial com a API REST do Proxmox VE para criação, consulta de status e remoção de máquinas virtuais, seguindo o fluxo \textit{Handler} \(\rightarrow\) \textit{UseCase} \(\rightarrow\) \textit{ProxmoxClient}.
+\begin{table}[htb]
+    \centering
+    \caption{Principais requisitos da plataforma}
+    \label{tab:requisitos}
+    \begin{tabularx}{\textwidth}{|l|X|}
+        \hline
+        \textbf{Id} & \textbf{Requisito} \\ \hline
+        \multicolumn{2}{|l|}{\textit{Requisitos funcionais}} \\ \hline
+        RF01 & Autenticar usuários e diferenciar os perfis aluno e pesquisador \\ \hline
+        RF02 & Cadastro de usuários realizado apenas por pesquisadores (sem autocadastro) \\ \hline
+        RF03 & Criar, listar, ligar, desligar e excluir máquinas virtuais, dentro dos limites do perfil \\ \hline
+        RF04 & Criar, listar e excluir contêineres de aplicação, dentro das quotas do perfil \\ \hline
+        RF05 & Acessar o terminal das VMs e dos contêineres pelo navegador \\ \hline
+        RF06 & Expor serviços dos contêineres na rede (HTTP ou TCP) \\ \hline
+        RF07 & Permitir o uso de GPU em cargas de IA/ML (previsto, não implementado) \\ \hline
+        \multicolumn{2}{|l|}{\textit{Requisitos não funcionais}} \\ \hline
+        RNF01 & Provisionamento reprodutível, definido como código \\ \hline
+        RNF02 & Credenciais da infraestrutura nunca expostas ao usuário final \\ \hline
+        RNF03 & Isolamento entre usuários \\ \hline
+        RNF04 & Interface simples, sem exigir conhecimento da infraestrutura subjacente \\ \hline
+    \end{tabularx}
+    \par\small Fonte: elaborado pelo autor.
+\end{table}
 
-\subsection{Terminal web}
-Foi implementado o acesso a terminal das máquinas virtuais diretamente pelo navegador, utilizando \textit{xterm.js} no \textit{frontend} e um proxy WebSocket no \textit{backend} que reproduz o protocolo \textit{termproxy} do Proxmox VE.
+\section{Desenvolvimento da solução}
+\label{sec:desenvolvimento}
 
-\subsection{Integração \textit{frontend}/\textit{backend}}
-O portal web, desenvolvido em Next.js (React) com TypeScript, foi integrado ao \textit{backend}, cobrindo o fluxo principal de criação, listagem, acesso e remoção de máquinas virtuais pelo usuário final.
+O desenvolvimento foi dividido nas seguintes fases, cada uma entregando uma capacidade completa e validada antes do início da seguinte:
 
-\subsection{Migração do provisionamento para Terraform}
-A criação e a remoção de máquinas virtuais deixaram de ser feitas diretamente pela API REST do Proxmox e passaram a ser feitas por meio de Terraform (\textit{provider} \texttt{bpg/proxmox}), com um \textit{workspace} isolado por VM. Essa etapa substituiu chamadas imperativas por uma declaração de infraestrutura como código, tornando o provisionamento auditável e reprodutível.
+\begin{enumerate}
+    \item \textbf{Autenticação e usuários}: mecanismo de autenticação e perfis de acesso;
+    \item \textbf{Máquinas virtuais no Proxmox}: integração inicial com a API do Proxmox VE para criação, consulta e remoção de VMs;
+    \item \textbf{Terminal web}: acesso interativo às VMs diretamente pelo navegador;
+    \item \textbf{Integração \textit{frontend}/\textit{backend}}: portal web conectado ao \textit{backend}, cobrindo o fluxo principal para o usuário final;
+    \item \textbf{Migração para Infraestrutura como Código}: substituição do provisionamento imperativo por declarações Terraform;
+    \item \textbf{Contêineres de aplicação em k3s}: segundo modelo de recurso, sobre um \textit{cluster} Kubernetes dedicado;
+    \item \textbf{Gestão de usuários e perfil}: cadastro por pesquisadores, tela de perfil e listagem/exclusão de usuários.
+\end{enumerate}
 
-\subsection{Contêineres de aplicação em k3s}
-Foi adicionado um segundo modelo de recurso à plataforma: contêineres de aplicação, provisionados em um cluster Kubernetes (\textit{k3s}) \textit{single-node} dedicado. Cada usuário passou a ter um \textit{namespace} próprio, com quota de recursos definida pelo perfil, e exposição de serviços via \textit{Ingress} (para tráfego HTTP, com um subdomínio por contêiner) ou \textit{NodePort} (para TCP ou quando não há domínio configurado). Essa fase substituiu a proposta original de automação de configuração via Ansible: em vez de instalar e configurar \textit{software} dentro de uma VM genérica, o usuário passou a poder provisionar diretamente um contêiner de aplicação já configurado (por exemplo, um banco de dados), orquestrado nativamente pelo Kubernetes.
+\figimg{fig:fases_desenvolvimento}{Etapas de desenvolvimento da PoC}{fases_desenvolvimento}{elaboração própria}
 
-\section{Justificativa do Método}
+\section{Validação}
 
-A escolha da abordagem de Prova de Conceito (PoC) se justifica por tratar-se de uma solução que integra múltiplas ferramentas de infraestrutura (Proxmox, Terraform, Kubernetes) em um único portal self-service, cujo objetivo principal é validar a viabilidade e os benefícios dessa integração de forma prática e demonstrável. O desenvolvimento incremental por fases permitiu identificar rapidamente obstáculos técnicos — como a necessidade de abandonar o Ansible em favor de uma orquestração nativa em Kubernetes para contêineres — e ajustar a arquitetura da solução ao longo do trabalho, sem comprometer o objetivo geral de reduzir a complexidade de infraestrutura exposta ao usuário final.
+A validação consistiu em testes de fluxo de trabalho executados contra o ambiente real do laboratório (Proxmox VE e \textit{cluster} k3s), tanto por utilitários de linha de comando quanto pelo uso ponta a ponta do portal, conforme descrito no Capítulo~\ref{chapter:experimentos}. Os resultados são confrontados com os objetivos específicos no Capítulo~\ref{chapter:resultados}.
