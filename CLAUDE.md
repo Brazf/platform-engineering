@@ -58,6 +58,9 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 ## Frontend — design system
 Toda tela interna nova segue `docs/frontend-design-system.md` (padrão de VMs/containers: `@/components` → `FormCard`, `Group`, `FORM.*`, `ResourceCard`...). Ler antes de criar/alterar telas; acrescentar tokens/componentes lá e em `form-ui.tsx`, nunca estilos soltos.
 
+## Documento do TCC
+Qualquer alteração em `documentos-tcc/` segue `documentos-tcc/VERSIONAMENTO.md` (commits por alteração; tag `tcc-vX.Y` só em mudanças grandes e sempre perguntando ao autor antes). Ler antes de mexer no documento.
+
 ## Regras
 - Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceções acordadas: ícone "Meu perfil" no header; `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
 - Sempre: `if err != nil`, `context.Context` em I/O, validar payload nos handlers, UUIDs como PK
