@@ -54,10 +54,17 @@ func main() {
 	spec := repository.VMSpec{
 		Name:     "proxlab-smoke-" + id.String()[:8],
 		CPUCores: 1,
-		MemoryMB: 512,
-		DiskGB:   4,
+		MemoryMB: 1024,
+		DiskGB:   20,
 		OSType:   "l26",
+		Pool:     cfg.ProxmoxPoolPesquisador,
 		Tags:     []string{"proxlab", "smoke-test"},
+
+		// Mesmo caminho do portal para Ubuntu: clone do template cloud-init
+		// (a criação de VM vazia exige VM.Config.Options, que o token não tem).
+		CloneVMID:         cfg.ProxmoxUbuntuTemplateVMID,
+		CloudInitUser:     "ubuntu",
+		CloudInitPassword: uuid.New().String(),
 	}
 
 	fmt.Printf("▶ 1/3 Provision (%s)\n", spec.Name)
