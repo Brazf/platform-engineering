@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/proxlab/backend/internal/domain/entity"
@@ -18,6 +20,13 @@ var (
 	ErrVMNotFound    = errors.New("VM não encontrada")
 	ErrAccessDenied  = errors.New("acesso negado")
 	ErrLimitExceeded = errors.New("limite de recursos excedido para o seu perfil")
+
+	// ErrGPUUnavailable: GPU pedida, mas nenhum resource mapping configurado.
+	ErrGPUUnavailable = errors.New("GPU não está disponível nesta instalação")
+	// ErrGPUInUse: a GPU da VM está em uso por outra VM ligada.
+	ErrGPUInUse = errors.New("GPU em uso por outra máquina virtual")
+	// ErrVMStartFailed: a tarefa de start terminou com erro que não é de conflito de GPU.
+	ErrVMStartFailed = errors.New("falha ao ligar a máquina virtual")
 )
 
 // CreateVMRequest é o input para criação de VM, incluindo role para validação de limites.
@@ -56,6 +65,8 @@ type VMUseCase struct {
 	// poolsByRole: perfil → resource pool do Proxmox. Decidido aqui (config), nunca pelo cliente:
 	// o token só aloca VMs dentro dos pools em que tem permissão.
 	poolsByRole map[string]string
+	gpuMu       sync.Mutex // serializa starts de VMs com GPU (pré-checagem + start + espera da tarefa)
+	gpuMappings []string   // resource mappings PCI de GPU (PROXMOX_GPU_MAPPINGS); ordem = prioridade
 }
 
 func NewVMUseCase(
@@ -65,6 +76,7 @@ func NewVMUseCase(
 	node string,
 	ubuntuTemplateVMID int,
 	poolsByRole map[string]string,
+	gpuMappings []string,
 ) *VMUseCase {
 	return &VMUseCase{
 		vmRepo:             vmRepo,
@@ -73,6 +85,7 @@ func NewVMUseCase(
 		node:               node,
 		ubuntuTemplateVMID: ubuntuTemplateVMID,
 		poolsByRole:        poolsByRole,
+		gpuMappings:        gpuMappings,
 	}
 }
 
@@ -86,14 +99,23 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 
 	pool := uc.poolsByRole[req.Role]
 	spec := repository.VMSpec{
-		Name:       req.Name,
-		CPUCores:   req.CPUCores,
-		MemoryMB:   req.MemoryMB,
-		DiskGB:     req.DiskGB,
-		OSType:     osTypeFromTemplate(req.OSTemplate),
-		Pool:       pool,
-		Tags:       req.Tags,
-		RequireGPU: req.RequireGPU,
+		Name:     req.Name,
+		CPUCores: req.CPUCores,
+		MemoryMB: req.MemoryMB,
+		DiskGB:   req.DiskGB,
+		OSType:   osTypeFromTemplate(req.OSTemplate),
+		Pool:     pool,
+		Tags:     req.Tags,
+	}
+	if req.RequireGPU {
+		if len(uc.gpuMappings) == 0 {
+			return nil, ErrGPUUnavailable
+		}
+		mapping, err := uc.pickGPUMapping(ctx)
+		if err != nil {
+			return nil, err
+		}
+		spec.GPUMapping = mapping
 	}
 
 	var creds *VMCredentials
@@ -108,6 +130,10 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		spec.CloudInitUser = creds.Username
 		spec.CloudInitPassword = creds.Password
 		status = entity.VMStatusRunning
+		if spec.GPUMapping != "" {
+			// VM com GPU nasce desligada: o start passa pela verificação de conflito.
+			status = entity.VMStatusStopped
+		}
 	}
 
 	id := uuid.New()
@@ -129,6 +155,7 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 		Pool:        pool,
 		Tags:        strings.Join(req.Tags, ";"),
 		RequireGPU:  req.RequireGPU,
+		GPUMapping:  spec.GPUMapping,
 		Status:      status,
 	}
 
@@ -141,6 +168,26 @@ func (uc *VMUseCase) CreateVM(ctx context.Context, userID uuid.UUID, req CreateV
 	}
 
 	return &CreateVMResult{VM: vm, Credentials: creds}, nil
+}
+
+// pickGPUMapping escolhe o mapping com menos VMs anexadas; empate → ordem da config.
+// Mappings que saíram da config não entram na contagem.
+func (uc *VMUseCase) pickGPUMapping(ctx context.Context) (string, error) {
+	vms, err := uc.vmRepo.FindWithGPU(ctx)
+	if err != nil {
+		return "", fmt.Errorf("erro ao contar VMs com GPU: %w", err)
+	}
+	counts := make(map[string]int, len(uc.gpuMappings))
+	for _, vm := range vms {
+		counts[vm.GPUMapping]++
+	}
+	best := uc.gpuMappings[0]
+	for _, m := range uc.gpuMappings[1:] {
+		if counts[m] < counts[best] {
+			best = m
+		}
+	}
+	return best, nil
 }
 
 func isUbuntu(template string) bool {
@@ -192,10 +239,71 @@ func (uc *VMUseCase) StartVM(ctx context.Context, userID, vmID uuid.UUID) error 
 	if err != nil {
 		return err
 	}
+	if vm.RequireGPU {
+		return uc.startGPUVM(ctx, vm)
+	}
 	if _, err := uc.proxmoxClient.StartVM(ctx, vm.ProxmoxVMID); err != nil {
 		return fmt.Errorf("erro ao iniciar VM no Proxmox: %w", err)
 	}
 	return uc.vmRepo.UpdateStatus(ctx, vm.ID, entity.VMStatusRunning)
+}
+
+const gpuStartTimeout = 90 * time.Second
+
+// startGPUVM liga uma VM com GPU. Starts com GPU são serializados (gpuMu) para o segundo
+// enxergar o primeiro como ligado. O Proxmox recusa o start dentro da tarefa (não na resposta
+// HTTP), por isso espera o WaitTask e classifica o exitstatus; o texto só vai para o log.
+func (uc *VMUseCase) startGPUVM(ctx context.Context, vm *entity.VM) error {
+	uc.gpuMu.Lock()
+	defer uc.gpuMu.Unlock()
+
+	if vm.GPUMapping != "" && uc.gpuBusy(ctx, vm) {
+		return ErrGPUInUse
+	}
+
+	upid, err := uc.proxmoxClient.StartVM(ctx, vm.ProxmoxVMID)
+	if err != nil {
+		return fmt.Errorf("erro ao iniciar VM no Proxmox: %w", err)
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, gpuStartTimeout)
+	defer cancel()
+	exit, err := uc.proxmoxClient.WaitTask(waitCtx, upid)
+	if err != nil {
+		return fmt.Errorf("erro ao aguardar a tarefa de início da VM: %w", err)
+	}
+	if exit != "OK" {
+		log.Printf("[vm] start da VM %d (id=%s) falhou: exitstatus=%q", vm.ProxmoxVMID, vm.ID, exit)
+		if (vm.GPUMapping != "" && uc.gpuBusy(ctx, vm)) || strings.Contains(exit, "already in use") {
+			return ErrGPUInUse
+		}
+		return ErrVMStartFailed
+	}
+	return uc.vmRepo.UpdateStatus(ctx, vm.ID, entity.VMStatusRunning)
+}
+
+// gpuBusy diz se outra VM do mesmo mapping está com processo no Proxmox (qualquer status
+// diferente de "stopped", inclusive pausada). Falha ao consultar uma VM não a conta como ocupada.
+func (uc *VMUseCase) gpuBusy(ctx context.Context, vm *entity.VM) bool {
+	others, err := uc.vmRepo.FindWithGPU(ctx)
+	if err != nil {
+		log.Printf("[vm] pré-checagem de GPU: erro ao listar VMs com GPU: %v", err)
+		return false
+	}
+	for _, o := range others {
+		if o.ID == vm.ID || o.GPUMapping != vm.GPUMapping {
+			continue
+		}
+		st, err := uc.proxmoxClient.GetVMStatus(ctx, o.ProxmoxVMID)
+		if err != nil {
+			log.Printf("[vm] pré-checagem de GPU: status da VM %d indisponível: %v", o.ProxmoxVMID, err)
+			continue
+		}
+		if st.Status != "stopped" {
+			return true
+		}
+	}
+	return false
 }
 
 // StopVM para a VM no Proxmox e atualiza o status no banco.

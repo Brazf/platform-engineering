@@ -29,7 +29,7 @@ func parseHCL(t *testing.T, src []byte) {
 }
 
 func TestRender_MinimalSpec(t *testing.T) {
-	out, err := terraform.Render(baseSpec(), "pve01", "")
+	out, err := terraform.Render(baseSpec(), "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
@@ -55,7 +55,7 @@ func TestRender_MinimalSpec(t *testing.T) {
 func TestRender_WithISO(t *testing.T) {
 	spec := baseSpec()
 	spec.ISO = "local:iso/ubuntu-22.04.iso"
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
@@ -67,30 +67,51 @@ func TestRender_WithISO(t *testing.T) {
 
 func TestRender_WithGPU(t *testing.T) {
 	spec := baseSpec()
-	spec.RequireGPU = true
-	out, err := terraform.Render(spec, "pve01", "0000:01:00.0,pcie=1")
+	spec.GPUMapping = "gpu-rtx4060-01"
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
 	s := string(out)
-	assert.Contains(t, s, `device = "hostpci0"`)
-	assert.Contains(t, s, `id     = "0000:01:00.0"`)
-	assert.Contains(t, s, `pcie   = true`)
+	assert.Contains(t, s, "hostpci {")
+	assert.Contains(t, s, `device  = "hostpci0"`)
+	assert.Contains(t, s, `mapping = "gpu-rtx4060-01"`)
+	assert.Contains(t, s, `pcie    = true`)
+	assert.NotRegexp(t, `(?m)^\s*id\s*=`, s)
 }
 
-func TestRender_GPURequestedButNotConfigured(t *testing.T) {
+func TestRender_CloneWithGPUStartsStopped(t *testing.T) {
 	spec := baseSpec()
-	spec.RequireGPU = true
-	out, err := terraform.Render(spec, "pve01", "")
+	spec.CloneVMID = 9000
+	spec.CloudInitUser = "ubuntu"
+	spec.GPUMapping = "gpu-rtx4060-02"
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
-	assert.NotContains(t, string(out), "hostpci")
+	parseHCL(t, out)
+
+	s := string(out)
+	assert.Contains(t, s, `started       = false`)
+	assert.NotContains(t, s, `started       = true`)
+	assert.Contains(t, s, `mapping = "gpu-rtx4060-02"`)
+}
+
+func TestRender_CloneWithoutGPUStartsRunning(t *testing.T) {
+	spec := baseSpec()
+	spec.CloneVMID = 9000
+	spec.CloudInitUser = "ubuntu"
+	out, err := terraform.Render(spec, "pve01")
+	require.NoError(t, err)
+
+	s := string(out)
+	assert.Contains(t, s, `started       = true`)
+	assert.NotContains(t, s, "hostpci")
 }
 
 func TestRender_WithPoolAndTags(t *testing.T) {
 	spec := baseSpec()
 	spec.Pool = "students"
 	spec.Tags = []string{"proxlab", "aluno"}
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
@@ -102,7 +123,7 @@ func TestRender_WithPoolAndTags(t *testing.T) {
 func TestRender_EscapesQuotesAndInterpolation(t *testing.T) {
 	spec := baseSpec()
 	spec.Name = `vm "x" ${evil}`
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
@@ -113,7 +134,7 @@ func TestRender_CustomStorageAndBridge(t *testing.T) {
 	spec := baseSpec()
 	spec.Storage = "local-lvm"
 	spec.Bridge = "vmbr1"
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	assert.Contains(t, string(out), `datastore_id = "local-lvm"`)
 	assert.Contains(t, string(out), `bridge = "vmbr1"`)
@@ -126,7 +147,7 @@ func TestRender_CloneMode(t *testing.T) {
 	spec.CloudInitPassword = `s3nh@"x`
 	spec.ISO = "local:iso/ignored.iso"
 	spec.Pool = "students"
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
@@ -149,7 +170,7 @@ func TestRender_CloneMode(t *testing.T) {
 }
 
 func TestRender_NoCloneHasNoInitialization(t *testing.T) {
-	out, err := terraform.Render(baseSpec(), "pve01", "")
+	out, err := terraform.Render(baseSpec(), "pve01")
 	require.NoError(t, err)
 	s := string(out)
 	assert.NotContains(t, s, "clone {")
@@ -164,7 +185,7 @@ func TestRender_CloneWithSSHKeyAndStaticIP(t *testing.T) {
 	spec.CloudInitSSHKeys = []string{"ssh-ed25519 AAAAC3 k3s"}
 	spec.StaticIP = "10.0.0.50/24"
 	spec.Gateway = "10.0.0.1"
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	parseHCL(t, out)
 
@@ -181,7 +202,7 @@ func TestRender_CloneDefaultsToDHCPAndPassword(t *testing.T) {
 	spec.CloneVMID = 9000
 	spec.CloudInitUser = "ubuntu"
 	spec.CloudInitPassword = "s3cret"
-	out, err := terraform.Render(spec, "pve01", "")
+	out, err := terraform.Render(spec, "pve01")
 	require.NoError(t, err)
 	s := string(out)
 	assert.Contains(t, s, `address = "dhcp"`)

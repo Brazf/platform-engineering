@@ -41,6 +41,12 @@ func (r *vmRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]en
 	return vms, err
 }
 
+func (r *vmRepository) FindWithGPU(ctx context.Context) ([]entity.VM, error) {
+	var vms []entity.VM
+	err := r.db.WithContext(ctx).Where("gpu_mapping <> ''").Find(&vms).Error
+	return vms, err
+}
+
 func (r *vmRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status entity.VMStatus) error {
 	return r.db.WithContext(ctx).
 		Model(&entity.VM{}).

@@ -11,6 +11,10 @@ import (
 // (ex.: VM criada antes da migração para Terraform).
 var ErrWorkspaceNotFound = errors.New("workspace terraform não encontrado")
 
+// ErrGPUNotPermitted indica que o token do Proxmox não tem Mapping.Use no resource mapping da GPU.
+// A correção é ACL no Proxmox (fora do código).
+var ErrGPUNotPermitted = errors.New("token sem permissão Mapping.Use no resource mapping da GPU")
+
 // VMSpec descreve a VM a ser provisionada. Independente da ferramenta de provisionamento.
 type VMSpec struct {
 	Name       string
@@ -23,7 +27,7 @@ type VMSpec struct {
 	Bridge     string // bridge de rede. Vazio → "vmbr0"
 	Pool       string // resource pool do Proxmox
 	Tags       []string
-	RequireGPU bool
+	GPUMapping string // nome do resource mapping PCI; vazio = sem GPU
 
 	// Modo clone: quando CloneVMID > 0 a VM é clonada de um template cloud-init
 	// (herda disco de sistema, BIOS e agent) e liga ao criar. ISO e OSType são ignorados.

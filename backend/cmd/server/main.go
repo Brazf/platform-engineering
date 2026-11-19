@@ -51,7 +51,8 @@ func main() {
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
 	profileUC := usecase.NewProfileUseCase(userRepo)
 	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID,
-		map[string]string{"aluno": cfg.ProxmoxPoolAluno, "pesquisador": cfg.ProxmoxPoolPesquisador})
+		map[string]string{"aluno": cfg.ProxmoxPoolAluno, "pesquisador": cfg.ProxmoxPoolPesquisador},
+		cfg.ProxmoxGPUMappings)
 	containerUC := usecase.NewContainerUseCase(containerRepo, containerRuntime, cfg.IngressDomain, cfg.K3SNodeHost())
 	userAdminUC := usecase.NewUserAdminUseCase(userRepo, vmRepo, containerRepo, vmUC, containerUC)
 

@@ -2,12 +2,21 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/proxlab/backend/internal/domain/repository"
 	"github.com/proxlab/backend/internal/middleware"
 	"github.com/proxlab/backend/internal/usecase"
+)
+
+const (
+	msgGPUUnavailable  = "GPU não está disponível nesta instalação."
+	msgGPUNotPermitted = "GPU temporariamente indisponível. Contate o administrador."
+	msgGPUInUse        = "A GPU desta máquina está em uso por outra máquina virtual. Tente ligar novamente quando ela for desligada."
+	msgVMStartFailed   = "Não foi possível ligar a máquina virtual."
 )
 
 type VMHandler struct {
@@ -34,7 +43,9 @@ type createVMRequest struct {
 // POST /api/vms
 // Body: { "name": "minha-vm", "cpu_cores": 2, "memory_mb": 2048, "disk_gb": 20, "os_template": "ubuntu-22.04" }
 // 201: { "id": "uuid", "proxmox_vm_id": 100, "name": "minha-vm", "status": "creating", "websocket_url": "/api/vms/uuid/terminal" }
-//      VMs Ubuntu (clonadas do template cloud-init) incluem "credentials": { "username", "password" } — retornado uma única vez.
+//
+//	VMs Ubuntu (clonadas do template cloud-init) incluem "credentials": { "username", "password" } — retornado uma única vez.
+//
 // 422: { "error": "limite de recursos excedido..." }
 func (h *VMHandler) Create(c *gin.Context) {
 	userID, ok := getUserID(c)
@@ -60,11 +71,7 @@ func (h *VMHandler) Create(c *gin.Context) {
 		RequireGPU: req.RequireGPU,
 	})
 	if err != nil {
-		if errors.Is(err, usecase.ErrLimitExceeded) {
-			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro ao criar VM"})
+		createVMError(c, err)
 		return
 	}
 
@@ -247,6 +254,22 @@ func getUserRole(c *gin.Context) string {
 	return role
 }
 
+// createVMError traduz os erros de POST /api/vms. Texto do Proxmox/Terraform só vai para o log.
+func createVMError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, usecase.ErrLimitExceeded):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	case errors.Is(err, usecase.ErrGPUUnavailable):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": msgGPUUnavailable})
+	case errors.Is(err, repository.ErrGPUNotPermitted):
+		log.Printf("[vm] criação com GPU recusada: token sem Mapping.Use: %v", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": msgGPUNotPermitted})
+	default:
+		log.Printf("[vm] erro ao criar VM: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro ao criar VM"})
+	}
+}
+
 func handleVMError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrVMNotFound):
@@ -255,7 +278,12 @@ func handleVMError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, usecase.ErrLimitExceeded):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	case errors.Is(err, usecase.ErrGPUInUse):
+		c.JSON(http.StatusConflict, gin.H{"error": msgGPUInUse})
+	case errors.Is(err, usecase.ErrVMStartFailed):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": msgVMStartFailed})
 	default:
+		log.Printf("[vm] erro: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno do servidor"})
 	}
 }

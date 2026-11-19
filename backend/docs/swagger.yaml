@@ -303,7 +303,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Limite de recursos excedido para o perfil do usuário
+          description: Limite de recursos excedido para o perfil do usuário, ou GPU pedida sem nenhum resource mapping configurado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Token do Proxmox sem Mapping.Use no mapping da GPU (contatar o administrador)
           content:
             application/json:
               schema:
@@ -407,6 +413,9 @@ paths:
     post:
       tags: [vms]
       summary: Ligar uma VM
+      description: >-
+        VM com GPU só liga se nenhuma outra VM estiver usando o mesmo resource mapping (409 caso contrário);
+        a resposta espera a tarefa de start do Proxmox (até 90 s).
       security:
         - bearerAuth: []
       parameters:
@@ -422,6 +431,18 @@ paths:
                   status:
                     type: string
                     example: running
+        "409":
+          description: GPU da VM em uso por outra VM ligada; a VM continua desligada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Falha ao ligar a VM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: ID de VM inválido
           content:
@@ -855,6 +876,7 @@ components:
         require_gpu:
           type: boolean
           default: false
+          description: VM com GPU nasce desligada. O backend escolhe o resource mapping (balanceando entre PROXMOX_GPU_MAPPINGS).
 
     CreateVMResponse:
       type: object
@@ -918,6 +940,9 @@ components:
           description: Tags separadas por ";" (formato do Proxmox)
         require_gpu:
           type: boolean
+        gpu_mapping:
+          type: string
+          description: Resource mapping da GPU anexada; vazio em VM sem GPU ou legada
         status:
           type: string
           enum: [creating, running, stopped, error]

@@ -45,6 +45,11 @@ type pveVMStatus struct {
 	Uptime int64   `json:"uptime"`
 }
 
+type pveTaskStatus struct {
+	Status     string `json:"status"` // "running" | "stopped"
+	ExitStatus string `json:"exitstatus"`
+}
+
 type pveTermProxy struct {
 	Ticket string  `json:"ticket"`
 	Port   flexInt `json:"port"`

@@ -29,6 +29,10 @@ type ProxmoxClientInterface interface {
 	// Retorna o UPID da tarefa.
 	RebootVM(ctx context.Context, vmid int) (taskID string, err error)
 
+	// WaitTask espera a tarefa (UPID) terminar e devolve o exitstatus ("OK" em sucesso).
+	// Proxmox: GET /nodes/{node}/tasks/{upid}/status
+	WaitTask(ctx context.Context, upid string) (exitStatus string, err error)
+
 	// GetTermProxy abre um terminal de texto para a VM via Proxmox termproxy.
 	// Proxmox: POST /nodes/{node}/qemu/{vmid}/termproxy
 	// Retorna ticket e porta para conexão WebSocket direta ao nó Proxmox.

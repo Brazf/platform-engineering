@@ -24,18 +24,18 @@ const (
 
 // templateData é o que o template enxerga, já com defaults aplicados.
 type templateData struct {
-	Node     string
-	Name     string
-	CPUCores int
-	MemoryMB int
-	DiskGB   int
-	Storage  string
-	OSType   string
-	ISO      string
-	Bridge   string
-	Pool     string
-	Tags     []string
-	GPUPCI   string // vazio = sem passthrough
+	Node       string
+	Name       string
+	CPUCores   int
+	MemoryMB   int
+	DiskGB     int
+	Storage    string
+	OSType     string
+	ISO        string
+	Bridge     string
+	Pool       string
+	Tags       []string
+	GPUMapping string // vazio = sem passthrough
 
 	CloneVMID         int
 	CloudInitUser     string
@@ -45,10 +45,9 @@ type templateData struct {
 	Gateway           string
 }
 
-// Render gera o main.tf para a spec. gpuPCI é o valor de PROXMOX_GPU_PCI
-// (ex: "0000:01:00.0,pcie=1"); só a parte antes da vírgula é usada, e apenas
-// quando spec.RequireGPU é true.
-func Render(spec repository.VMSpec, node, gpuPCI string) ([]byte, error) {
+// Render gera o main.tf para a spec. spec.GPUMapping (vazio = sem GPU) vira um
+// bloco hostpci com `mapping`; VM clonada com GPU nasce desligada.
+func Render(spec repository.VMSpec, node string) ([]byte, error) {
 	data := templateData{
 		Node:     node,
 		Name:     spec.Name,
@@ -62,6 +61,8 @@ func Render(spec repository.VMSpec, node, gpuPCI string) ([]byte, error) {
 		Pool:     spec.Pool,
 		Tags:     spec.Tags,
 
+		GPUMapping: spec.GPUMapping,
+
 		CloneVMID:         spec.CloneVMID,
 		CloudInitUser:     spec.CloudInitUser,
 		CloudInitPassword: spec.CloudInitPassword,
@@ -74,9 +75,6 @@ func Render(spec repository.VMSpec, node, gpuPCI string) ([]byte, error) {
 	}
 	if data.Bridge == "" {
 		data.Bridge = defaultBridge
-	}
-	if spec.RequireGPU && gpuPCI != "" {
-		data.GPUPCI, _, _ = strings.Cut(gpuPCI, ",")
 	}
 
 	var buf bytes.Buffer
