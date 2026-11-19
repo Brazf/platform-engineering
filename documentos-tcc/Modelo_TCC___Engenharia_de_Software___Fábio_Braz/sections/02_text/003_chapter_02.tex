@@ -11,9 +11,7 @@ Este trabalho adotou a abordagem de Prova de Conceito (PoC), em um estudo de cas
 \section{Elicitação de requisitos}
 \label{sec:elicitacao}
 
-% TODO(autor): confirmar/ajustar como o levantamento foi feito de fato (reuniões com o orientador, conversa com
-% pesquisadores/alunos do laboratório, observação do processo atual de solicitação de VMs) e citar datas, se houver.
-Os requisitos foram levantados a partir do problema observado no ambiente do laboratório — a solicitação de máquinas virtuais depende de interação direta com quem administra o Proxmox VE — e das definições do pré-projeto e das reuniões de orientação. Definiram-se dois perfis de usuário, com limites de recursos distintos: o \textit{aluno}, com limites menores, e o \textit{pesquisador}, com limites maiores e responsável pelo cadastro de novos usuários. O Quadro~\ref{tab:requisitos} resume os principais requisitos identificados.
+Os requisitos foram levantados a partir do problema observado no ambiente do laboratório — a solicitação de máquinas virtuais depende de interação direta com quem administra o Proxmox VE — e das definições do pré-projeto e das reuniões de orientação. Definiram-se dois perfis de usuário, com limites de recursos distintos: o \textit{aluno}, com limites menores, e o \textit{pesquisador}, com limites maiores e responsável pelo cadastro de novos usuários. A Tabela~\ref{tab:requisitos} resume os principais requisitos identificados. O levantamento partiu da demanda apresentada pelo professor Elton Bezerra Torres, orientador deste trabalho, que já dispunha da base dos requisitos que orientaram o projeto; toda a informação inicial passou por ele, por meio de áudios, documentos e reuniões de requisitos realizadas por videoconferência.
 
 \begin{table}[htb]
     \centering
@@ -29,7 +27,7 @@ Os requisitos foram levantados a partir do problema observado no ambiente do lab
         RF04 & Criar, listar e excluir contêineres de aplicação, dentro das quotas do perfil \\ \hline
         RF05 & Acessar o terminal das VMs e dos contêineres pelo navegador \\ \hline
         RF06 & Expor serviços dos contêineres na rede (HTTP ou TCP) \\ \hline
-        RF07 & Permitir o uso de GPU em cargas de IA/ML (previsto, não implementado) \\ \hline
+        RF07 & Permitir o uso de GPU em cargas de IA/ML, anexando uma GPU física à máquina virtual (\textit{pass-through}) \\ \hline
         \multicolumn{2}{|l|}{\textit{Requisitos não funcionais}} \\ \hline
         RNF01 & Provisionamento reprodutível, definido como código \\ \hline
         RNF02 & Credenciais da infraestrutura nunca expostas ao usuário final \\ \hline
@@ -38,6 +36,39 @@ Os requisitos foram levantados a partir do problema observado no ambiente do lab
     \end{tabularx}
     \par\small Fonte: elaborado pelo autor.
 \end{table}
+
+\par Para complementar esse levantamento inicial, foi feita uma análise do sistema implementado (engenharia reversa do \textit{backend} e do \textit{frontend}), tomando como base as rotas da API, com seus métodos HTTP, e as regras de negócio aplicadas no \textit{backend}. Todos os requisitos da Tabela~\ref{tab:requisitos} têm correspondência na implementação. A análise identificou, além deles, os requisitos da Tabela~\ref{tab:requisitos_complementares}, que complementam os anteriores sem substituí-los. A coluna \textit{Evidência} indica a rota ou a regra do sistema de onde cada requisito foi derivado.
+
+{\small
+\begin{longtable}{|l|p{7.4cm}|p{4.9cm}|}
+    \caption{Requisitos complementares derivados do sistema implementado}
+    \label{tab:requisitos_complementares} \\
+    \hline
+    \textbf{Id} & \textbf{Requisito} & \textbf{Evidência} \\ \hline
+    \endfirsthead
+    \hline
+    \textbf{Id} & \textbf{Requisito} & \textbf{Evidência} \\ \hline
+    \endhead
+    \multicolumn{3}{|l|}{\textit{Requisitos funcionais}} \\ \hline
+    RF08 & Consultar os detalhes de uma máquina virtual e reiniciá-la & \path{GET /api/vms/:id}; \path{POST /api/vms/:id/reboot} \\ \hline
+    RF09 & Gerar, para VMs Ubuntu, usuário e senha de acesso por VM, exibidos ao usuário uma única vez, na criação & Resposta \path{201} de \path{POST /api/vms} (campo \textit{credentials}) \\ \hline
+    RF10 & Impedir que uma VM com GPU seja ligada enquanto a placa estiver em uso por outra VM, informando o conflito ao usuário & \path{POST /api/vms/:id/start} (resposta \path{409}) \\ \hline
+    RF11 & Consultar o catálogo de imagens disponíveis para contêineres & \path{GET /api/containers/catalog} \\ \hline
+    RF12 & Configurar, na criação do contêiner, variáveis de ambiente, comando, porta e protocolo (HTTP ou TCP) e volume persistente & Corpo de \path{POST /api/containers} \\ \hline
+    RF13 & Consultar os detalhes e os \textit{logs} de um contêiner & \path{GET /api/containers/:id}; \path{GET /api/containers/:id/logs} \\ \hline
+    RF14 & Consultar e atualizar os dados do próprio perfil e alterar a própria senha, mediante a senha atual & \path{GET} e \path{PATCH /api/me}; \path{PUT /api/me/password} \\ \hline
+    RF15 & Listar os usuários cadastrados, com filtro por perfil, alterar o \textit{e-mail} e excluir usuários (apenas pesquisador), removendo também as VMs e os contêineres do usuário excluído & \path{GET /api/users}; \path{PATCH} e \path{DELETE /api/users/:id} \\ \hline
+    \multicolumn{3}{|l|}{\textit{Requisitos não funcionais}} \\ \hline
+    RNF05 & Limites de recursos por perfil: aluno com até 2 CPUs, 4 GB de memória, 5 contêineres e 20 GB de armazenamento persistente; pesquisador com até 8 CPUs, 16 GB, 20 contêineres e 100 GB. Perfil desconhecido recebe os limites do aluno & Regras de limite do \textit{backend}; resposta de erro de limite excedido \\ \hline
+    RNF06 & Todas as rotas, exceto o \textit{login}, exigem autenticação por \textit{token} JWT com validade configurável; a gestão de usuários é restrita ao perfil pesquisador & \textit{Middleware} de autenticação e de perfil; respostas \path{401} e \path{403} \\ \hline
+    RNF07 & Senhas armazenadas apenas na forma de \textit{hash} (\textit{bcrypt}), com tamanho mínimo de 8 caracteres & Cadastro e troca de senha \\ \hline
+    RNF08 & Cada usuário acessa somente as suas próprias VMs e contêineres; contêineres ficam em \textit{namespace} próprio, com quota; o \textit{resource pool} das VMs é definido pelo \textit{backend} conforme o perfil, nunca pelo usuário & Verificação de propriedade nos casos de uso; \textit{namespace} por usuário \\ \hline
+    RNF09 & Erros internos da infraestrutura (Proxmox VE, Terraform, Kubernetes) não são repassados ao usuário, que recebe mensagens genéricas em português & Tratamento de erros nos \textit{handlers} \\ \hline
+    RNF10 & Configuração e segredos fornecidos por variáveis de ambiente, sem valores sensíveis no código-fonte & Módulo de configuração do \textit{backend} \\ \hline
+    RNF11 & API documentada no padrão OpenAPI (Swagger) & Rota \path{/swagger} e arquivo \path{swagger.yaml} \\ \hline
+    RNF12 & Código organizado em camadas desacopladas por interfaces, com testes automatizados e testes de fumaça contra o ambiente real & Estrutura do \textit{backend}; \path{cmd/proxmox-check} \\ \hline
+\end{longtable}
+}
 
 \section{Desenvolvimento da solução}
 \label{sec:desenvolvimento}

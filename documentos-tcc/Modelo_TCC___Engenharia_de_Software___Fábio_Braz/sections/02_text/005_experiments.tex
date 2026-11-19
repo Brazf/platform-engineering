@@ -18,10 +18,9 @@ Foram implementados dois utilitários de linha de comando (\texttt{cmd/proxmox-c
 
 \figimg{fig:val_saida_smoke}{Saída dos testes de fumaça contra o ambiente real: contêiner no cluster k3s (\texttt{--k3s}) e máquina virtual no Proxmox VE}{val_saida_smoke}{captura de tela do terminal}
 
-\section{Validação de criação de conteúdo}
+\section{Validação do uso dos recursos criados}
 \label{sec:val_conteudo}
 
-% TODO(autor): confirmar se "criação de conteúdo" no sentido do professor é o que foi feito dentro dos recursos (banco, dados, logs). Ajustar o texto se for outro entendimento.
 Além de criar o recurso, validou-se que é possível gerar e utilizar conteúdo dentro dele. Foi criado, pelo portal, um contêiner de aplicação PostgreSQL com variáveis de ambiente, volume persistente e exposição de porta TCP via \textit{NodePort}; foram consultados os logs do contêiner e validada uma conexão via \texttt{psql}, na qual o banco respondeu às consultas, antes de o contêiner ser removido. De modo análogo, na VM Ubuntu, o terminal web foi utilizado para executar comandos no sistema criado.
 
 \par O acesso externo a um contêiner por meio do par \texttt{ip:porta} do \textit{NodePort} não pôde ser validado durante o desenvolvimento, pois a rede VPN utilizada para acesso ao ambiente de laboratório bloqueia o tráfego de entrada nessas portas a partir de fora da rede interna. Essa validação depende de o \textit{backend} estar em execução na própria VM do laboratório, e é discutida como trabalho futuro no Capítulo~\ref{chapter:conclusoes_trabalhos_futuros}.
@@ -32,12 +31,11 @@ Além de criar o recurso, validou-se que é possível gerar e utilizar conteúdo
 
 \section{Validação de \textit{pass-through} de GPU}
 
-% TODO(autor): GPU NÃO está implementada no código (fora da v1). Se o professor quer este experimento, é preciso
-% implementar/testar o pass-through (PCIe passthrough no Proxmox / hostpci no Terraform) antes de preencher esta seção.
-% Se não for possível até 15/11, manter como trabalho futuro e remover esta seção.
-Esta validação tem por objetivo verificar se uma máquina virtual criada pela plataforma consegue acessar uma GPU física do servidor por meio de \textit{pass-through} de dispositivo PCIe, requisito de cargas de IA/ML. Até a presente versão, o acesso a GPU não foi implementado, razão pela qual não há resultados a reportar; o tema é tratado como trabalho futuro no Capítulo~\ref{chapter:conclusoes_trabalhos_futuros}.
+Esta validação verifica se uma máquina virtual criada pela plataforma consegue acessar uma GPU física do servidor por meio de \textit{pass-through} de dispositivo PCIe, requisito de cargas de IA/ML. O servidor possui duas placas NVIDIA GeForce RTX 4060, expostas no Proxmox VE como \textit{resource mappings} PCI (\texttt{gpu-rtx4060-01} e \texttt{gpu-rtx4060-02}); o \textit{backend} escolhe o \textit{mapping} no momento da criação, distribuindo as máquinas entre as duas placas.
 
-\figplaceholder{fig:val_gpu}{GPU visível dentro da máquina virtual (\texttt{nvidia-smi})}{Captura do terminal da VM exibindo a saída de \texttt{nvidia-smi} (a ser feita somente se o pass-through for implementado)}{captura de tela do terminal}
+\par A validação foi feita em duas etapas. Na primeira, o utilitário \texttt{cmd/proxmox-check} foi executado com a opção \texttt{--gpu} para cada um dos dois \textit{mappings}: a máquina virtual de teste foi criada com a GPU anexada, nasceu desligada, como previsto pela regra de negócio, e foi removida em seguida, o que confirma a permissão do \textit{token} de API sobre cada \textit{mapping}. Na segunda, a opção \texttt{--gpu-conflict} tentou ligar uma máquina com a GPU já ocupada por outra máquina virtual; o Proxmox VE recusou a inicialização com a mensagem \textit{PCI device already in use}, comportamento que o \textit{backend} traduz em uma resposta de conflito (HTTP 409) e em um aviso ao usuário, mantendo a máquina desligada. Por fim, o terminal web de uma máquina com GPU exibiu a placa por meio do comando \texttt{nvidia-smi}, conforme a Figura~\ref{fig:val_gpu}.
+
+\figimg{fig:val_gpu}{GPU visível dentro da máquina virtual (\texttt{nvidia-smi})}{CAPTURA-TELA-TERMINAL-GPU}{captura de tela do terminal}
 
 \section{Validação de criação e autenticação de usuários}
 

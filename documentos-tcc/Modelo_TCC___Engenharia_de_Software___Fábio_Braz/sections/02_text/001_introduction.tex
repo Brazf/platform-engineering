@@ -2,11 +2,14 @@
 
 A crescente demanda por agilidade e eficiência no ciclo de desenvolvimento de software e pesquisa tem impulsionado transformações significativas na maneira como a infraestrutura de tecnologia é gerenciada e provisionada. Tradicionalmente, o processo de solicitação e configuração de ambientes computacionais, sejam máquinas virtuais (VMs) ou contêineres, bem como a instalação de dependências e ferramentas específicas, representa um gargalo considerável para desenvolvedores e pesquisadores. A complexidade inerente à gestão de infraestrutura de baixo nível, a necessidade de múltiplos conhecimentos técnicos e o tempo de espera envolvido na interação com equipes de infraestrutura ou operações frequentemente resultam em atrasos no projeto e na diminuição da produtividade \cite{KunalBhandari}.\\
 
-Nesse cenário, a \textit{Engenharia de Plataforma} surge como uma disciplina fundamental. Ela se concentra em criar e manter ferramentas e infraestrutura que capacitam os usuários, sejam desenvolvedores, pesquisadores ou outros profissionais, a consumir recursos de tecnologia de forma autônoma e eficiente, sem a necessidade de aprofundar-se nos detalhes complexos da infraestrutura subjacente \cite{Sandobalín}. O objetivo primário é otimizar a Experiência do Pesquisador (RX), permitindo que se concentrem em suas atividades de valor principal, em vez de se preocuparem com o provisionamento e a manutenção de seus ambientes de trabalho \cite{Gokhale}.\\
+Nesse cenário, a \textit{Engenharia de Plataforma} surge como uma disciplina fundamental. Ela se concentra em criar e manter ferramentas e infraestrutura que capacitam os usuários, sejam desenvolvedores, pesquisadores ou outros profissionais, a consumir recursos de tecnologia de forma autônoma e eficiente, sem a necessidade de aprofundar-se nos detalhes complexos da infraestrutura subjacente \cite{Sandobalín}. O objetivo primário é otimizar a Experiência do Pesquisador (\textit{Researcher Experience} — RX), permitindo que se concentrem em suas atividades de valor principal, em vez de se preocuparem com o provisionamento e a manutenção de seus ambientes de trabalho \cite{Gokhale}.\\
 
 Diante desse contexto, este trabalho apresenta o desenvolvimento do \textbf{ProxLab}, uma \textbf{Plataforma de Engenharia Self-Service} voltada para alunos e pesquisadores de um ambiente acadêmico de virtualização \textit{on-premises}. A plataforma oferece um portal web onde os usuários definem suas necessidades de infraestrutura, escolhendo entre máquinas virtuais e contêineres de aplicação, dentro de limites de recursos definidos por perfil de usuário (aluno ou pesquisador). Diferentemente da abordagem inicialmente concebida — que previa a automação de configuração por meio do Ansible —, a solução final adota uma arquitetura híbrida: a orquestração de máquinas virtuais no Proxmox VE é feita via \textit{Terraform} (Infraestrutura como Código), enquanto o provisionamento de contêineres de aplicação é realizado em um cluster Kubernetes (\textit{k3s}) dedicado, isolando cada usuário em um \textit{namespace} próprio e expondo os serviços via \textit{Ingress} ou \textit{NodePort}. Essa mudança de arquitetura, motivada pelas particularidades do provisionamento de contêineres, elimina a necessidade de um passo intermediário de configuração e aproxima a plataforma de práticas nativas de orquestração de contêineres, mantendo o objetivo original de reduzir a complexidade técnica exposta ao usuário final \cite{Muhammad}.
 
-\clearpage
+
+
+
+\par O código-fonte e o material complementar constam no Apêndice~\ref{apendice:material}.
 
 \section{Objetivos}
 
@@ -21,5 +24,6 @@ Desenvolver e implementar uma Plataforma de Engenharia Self-Service capaz de aut
     \item Prover acesso interativo aos ambientes provisionados, por meio de terminal web tanto para máquinas virtuais (via proxy WebSocket para o Proxmox) quanto para contêineres (via \textit{exec} no cluster Kubernetes).
     \item Avaliar a eficácia da plataforma em termos de redução do tempo de provisão de infraestrutura, diminuição da dependência de equipes de TI para configurações básicas e melhoria da experiência dos pesquisadores no acesso a ambientes dedicados para suas atividades de desenvolvimento e pesquisa.
 \end{itemize}
+
 
 \clearpage

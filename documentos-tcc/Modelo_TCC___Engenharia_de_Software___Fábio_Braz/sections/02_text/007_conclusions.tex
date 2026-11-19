@@ -8,19 +8,12 @@ Com base nos objetivos estabelecidos, pode-se afirmar que a Plataforma de Engenh
 Entre os itens que permanecem como trabalho futuro, destacam-se:
 
 \begin{itemize}
-    \item Suporte a acesso a GPU para cargas de trabalho de Inteligência Artificial e Aprendizado de Máquina, objetivo previsto desde o pré-projeto e ainda não implementado.
-
     \item Ciclo de vida mais completo para contêineres de aplicação (\textit{start}, \textit{stop}, \textit{restart}) e suporte a \textit{build} de imagens a partir de \textit{Dockerfile} ou \textit{tarball} enviado pelo usuário.
 
     \item TLS no \textit{Ingress} dos contêineres expostos via domínio, hoje disponibilizados apenas em HTTP.
 
     \item Validação do acesso externo a contêineres por meio do par \texttt{ip:porta} do \textit{NodePort}, não realizada durante o desenvolvimento devido a restrições da rede VPN utilizada para acesso ao ambiente de laboratório.
 
-    \item Conclusão do fluxo de cadastro de usuários por convite: ativação por código enviado por e-mail, tela de primeiro acesso e remoção do cadastro público.
-
-    \item Tela de perfil do usuário, permitindo a alteração do próprio nome e senha.
-
-    \item Listagem e gerenciamento de usuários cadastrados pelo perfil pesquisador, incluindo a exclusão de um usuário com a devida remoção de todas as suas VMs e contêineres.
 \end{itemize}
 
 Através dessas frentes, a plataforma pode evoluir de uma Prova de Conceito validada para uma ferramenta mais completa de apoio à pesquisa e ao ensino no contexto do laboratório.
