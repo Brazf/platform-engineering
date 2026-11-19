@@ -63,6 +63,17 @@
 \urlstyle{same}                         % URL com o mesmo estilo do texto e não mono-spaced
 \makeindex                              % para o índice remissivo
 \raggedbottom                           % para não permitir espaços extra no texto
+% Flutuantes (figuras/tabelas): permitem ocupar mais da página e aparecer no topo ou em página própria, reduzindo espaços em branco
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{2}
+\setcounter{totalnumber}{4}
+% Título não fica isolado no fim da página: ao menos duas linhas do parágrafo seguinte o acompanham
+\clubpenalty=10000
+\widowpenalty=10000
+
 \cleardoublepage
 \normalsize
 
@@ -92,9 +103,9 @@
 
 % Figura real: \figimg{rótulo}{legenda}{arquivo em images/ (sem extensão)}{fonte}
 \newcommand{\figimg}[4]{%
-  \begin{figure}[htb]
+  \begin{figure}[!htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{images/#3}
+    \includegraphics[width=0.95\textwidth,height=0.34\textheight,keepaspectratio]{images/#3}
     \caption{#2}
     \label{#1}
     \par\small Fonte: #4.
