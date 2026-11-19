@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CONSOLE, FORM, InternalCompactHeader, STATUS_DOT } from "@/components";
-import { apiGetVM, apiRebootVM, apiStopVM, VM_STATUS_LABEL, type VM } from "@/lib/api";
+import { apiGetVM, apiRebootVM, apiStopVM, gpuLabel, VM_STATUS_LABEL, type VM } from "@/lib/api";
 import "@xterm/xterm/css/xterm.css";
 
 type ConnState = "connecting" | "open" | "closed";
@@ -166,7 +166,7 @@ export default function UtilizarMaquinaVirtualPage() {
             <div><p className={CONSOLE.label}>Sistema</p><p className={CONSOLE.value}>{vm?.os_template ?? "—"}</p></div>
             <div><p className={CONSOLE.label}>Recursos</p><p className={CONSOLE.value}>{vm ? `${vm.cpu_cores} ${vm.cpu_cores === 1 ? "núcleo" : "núcleos"}, ${vm.memory_mb / 1024} GB` : "—"}</p></div>
             <div><p className={CONSOLE.label}>Disco</p><p className={CONSOLE.value}>{vm ? `${vm.disk_gb} GB` : "—"}</p></div>
-            <div><p className={CONSOLE.label}>GPU</p><p className={CONSOLE.value}>{vm ? (vm.require_gpu ? "sim" : "não") : "—"}</p></div>
+            <div><p className={CONSOLE.label}>GPU</p><p className={CONSOLE.value}>{vm ? gpuLabel(vm) : "—"}</p></div>
             <div><p className={CONSOLE.label}>ID no Proxmox</p><p className={CONSOLE.value}>{vm?.proxmox_vm_id ?? "—"}</p></div>
           </div>
 

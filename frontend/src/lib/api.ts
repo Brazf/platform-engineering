@@ -141,6 +141,7 @@ export interface VM {
   pool: string;
   tags: string;
   require_gpu: boolean;
+  gpu_mapping: string; // resource mapping da GPU; vazio em VM sem GPU ou legada
   status: VMStatus;
   created_at: string;
   updated_at: string;
@@ -155,6 +156,12 @@ export async function apiGetVM(id: string): Promise<VM> {
 }
 
 /** Credenciais cloud-init geradas para VMs Ubuntu. Retornadas uma única vez na criação. */
+/** Texto do campo GPU: "sim (<mapping>)", "sim" (legada) ou "não". */
+export function gpuLabel(vm: Pick<VM, "require_gpu" | "gpu_mapping">): string {
+  if (!vm.require_gpu) return "não";
+  return vm.gpu_mapping ? `sim (${vm.gpu_mapping})` : "sim";
+}
+
 export interface VMCredentials {
   username: string;
   password: string;

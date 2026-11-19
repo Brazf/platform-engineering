@@ -131,7 +131,7 @@ export default function CriarMaquinaVirtualPage() {
               <p className={FORM.label}>GPU</p>
               <Segmented name="gpu" value={requireGpu} onChange={setRequireGpu}
                 options={[{ v: false, label: "Não precisa" }, { v: true, label: "Requer GPU" }]} />
-              <p className={FORM.hint}>Disponível para o perfil pesquisador, uma máquina por vez.</p>
+              <p className={FORM.hint}>A máquina é criada desligada. Só liga se a GPU não estiver em uso por outra máquina.</p>
             </div>
           </Group>
 
@@ -162,6 +162,10 @@ export default function CriarMaquinaVirtualPage() {
                 </div>
               ))}
             </div>
+
+            {requireGpu && (
+              <p className={FORM.hint}>A máquina foi criada desligada. Ligue-a na tela de detalhes, se a GPU estiver livre.</p>
+            )}
 
             <div className="mt-7 flex justify-center">
               <button type="button" onClick={() => router.push("/maquinas-virtuais")} className={FORM.primaryBtn}>
