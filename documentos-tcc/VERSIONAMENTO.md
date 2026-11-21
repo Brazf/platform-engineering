@@ -38,6 +38,9 @@ O biber do MacTeX falha neste Mac (`extracting arm64 binary with lipo failed`). 
 `PATH=$HOME/.local/bin:$PATH latexmk -pdf -interaction=nonstopmode tcc_ifpe_eng_sw.tex`
 (`~/.local/bin/biber` vem de `lipo /Library/TeX/texbin/biber -thin arm64 -output ~/.local/bin/biber`.)
 
+**No Linux (Ubuntu):** o `biber` do apt é nativo, então não precisa do contorno acima. Pacotes: `texlive-full biber latexmk`. Compilar dentro da pasta do documento:
+`latexmk -pdf -interaction=nonstopmode tcc_ifpe_eng_sw.tex`
+
 ## Histórico de versões
 
 | Versão | Descrição |
