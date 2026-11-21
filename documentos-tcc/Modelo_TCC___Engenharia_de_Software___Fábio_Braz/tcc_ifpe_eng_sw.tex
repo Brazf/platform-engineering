@@ -88,7 +88,7 @@
 % Variáveis importantes
 \title{Plataforma de Engenharia Self-Service: Abstraindo a Complexidade da Infraestrutura para Pesquisa e Inovação}
 \author{Fábio Braz Ferreira}
-\date{DD/MM/AAAA}
+\date{02/12/2026}
 % Espaço reservado para figura: \figplaceholder{rótulo}{legenda}{o que inserir}{fonte}
 % Para trocar pela imagem real, substitua o \fbox por \includegraphics[width=0.9\textwidth]{images/arquivo.png}
 \newcommand{\figplaceholder}[4]{%
@@ -112,13 +112,24 @@
   \end{figure}%
 }
 
+% Figura com altura máxima customizada (#5, em fração de \textheight), para caber na página do texto que a cita
+\newcommand{\figimgh}[5]{%
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=#5\textheight,keepaspectratio]{images/#3}
+    \caption{#2}
+    \label{#1}
+    \par\small Fonte: #4.
+  \end{figure}%
+}
+
 \newcommand{\thecourse}{Bacharelado em Engenharia de Software}
 \newcommand{\thesupervisor}{Elton Bezerra Torres}
 \newcommand{\thelocal}{Belo Jardim, Pernambuco}
 \newcommand{\thequalifiers}{
 {Elton Bezerra Torres - IFPE - Campus Belo Jardim (Orientador)} \hfill  {}\\
-{NOME DO CONVIDADO 1 - IFPE - Campus Belo Jardim} \hfill  {}\\
-{NOME DO CONVIDADO 2 - INSTITUIÇÃO}
+{Hítalo Oliveira da Silva - IFPE - Campus Belo Jardim} \hfill  {}\\
+{Daniel Leite Viana - IFPE - Campus Palmares}
 }
 
 \begin{document}
