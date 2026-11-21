@@ -44,3 +44,4 @@ O biber do MacTeX falha neste Mac (`extracting arm64 binary with lipo failed`). 
 |---|---|
 | `tcc-v1.0` | Documento original (antes das recomendações do professor) |
 | `tcc-v2.0` | Fundamentação reestruturada, metodologia/implementação separadas, experimentos como validações de fluxo, 11 diagramas e 10 prints adicionados |
+| `tcc-v2.1` | Ajustes do orientador aplicados em bloco: todas as figuras citadas no texto, banca e data de entrega (02/12/2026) preenchidas, Conclusões separadas em 7.1, lista de abreviaturas completa |
