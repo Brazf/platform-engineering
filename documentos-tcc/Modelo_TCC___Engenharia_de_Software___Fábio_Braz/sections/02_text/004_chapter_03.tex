@@ -54,10 +54,10 @@ O acesso à plataforma é protegido por autenticação baseada em JWT. Após o \
 
 O acesso interativo aos recursos provisionados é oferecido diretamente pelo navegador, sem a necessidade de um cliente SSH local (Figura~\ref{fig:terminal_web}). Para máquinas virtuais, o \textit{backend} atua como um proxy WebSocket entre o navegador e o protocolo \textit{termproxy} do Proxmox VE, reproduzindo o seu \textit{handshake} específico: uma primeira mensagem de autenticação no formato \texttt{"\textless usuário\textgreater :\textless ticket\textgreater\textbackslash n"}, respondida com \texttt{OK}, seguida do enquadramento de dados de teclado e de redimensionamento de terminal segundo o protocolo do Proxmox. Para contêineres, o acesso a terminal é feito por meio da operação de \textit{exec} do próprio cluster Kubernetes, sem a necessidade de um protocolo intermediário.
 
-\figimgh{fig:terminal_web}{Terminal web de uma máquina virtual Ubuntu no navegador}{front-tela-terminal-web-vm}{captura de tela do ProxLab}{0.17}
+\figimg{fig:terminal_web}{Terminal web de uma máquina virtual Ubuntu no navegador}{front-tela-terminal-web-vm}{captura de tela do ProxLab}
 
 \section{Infraestrutura como código e configuração inicial}
 
 A infraestrutura de máquinas virtuais é definida como código: cada VM possui seu próprio \textit{workspace} Terraform, de modo que criar ou destruir um recurso equivale a aplicar ou destruir uma configuração versionável e reprodutível. A configuração inicial das VMs Ubuntu (usuário, senha e chaves SSH) é entregue por \textit{cloud-init}, a partir do \textit{template} clonado. Não é utilizado o Ansible: a instalação de \textit{software} é oferecida por meio de contêineres de aplicação. A Figura~\ref{fig:terraform_main_tf} apresenta um exemplo de configuração usando o Terraform.
 
-\figimgh{fig:terraform_main_tf}{Exemplo de configuração Terraform gerada pelo \textit{backend}}{terraform_main_tf}{elaboração própria (exemplo ilustrativo baseado no \textit{template} do \textit{backend})}{0.16}
+\figimg{fig:terraform_main_tf}{Exemplo de configuração Terraform gerada pelo \textit{backend}}{terraform_main_tf}{elaboração própria (exemplo ilustrativo baseado no \textit{template} do \textit{backend})}
