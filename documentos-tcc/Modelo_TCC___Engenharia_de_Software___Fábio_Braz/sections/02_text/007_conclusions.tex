@@ -5,6 +5,8 @@
 
 Com base nos objetivos estabelecidos, pode-se afirmar que a Plataforma de Engenharia Self-Service desenvolvida neste trabalho atingiu seu objetivo geral: oferecer a alunos e pesquisadores um portal capaz de provisionar máquinas virtuais e contêineres de aplicação de forma autônoma, sem exigir conhecimento aprofundado da infraestrutura subjacente. A arquitetura final, sustentada por Terraform para VMs e por um cluster Kubernetes dedicado para contêineres, diverge da abordagem originalmente prevista no pré-projeto — que previa o uso de Ansible para configuração de ambientes —, mas preserva a ideia central de reduzir a complexidade técnica exposta ao usuário final, tendo se mostrado, na prática, uma solução mais aderente ao modelo de provisionamento de contêineres adotado.
 
+\par O acesso a GPU para cargas de IA e \textit{machine learning} também foi atendido: o \textit{backend} anexa à máquina virtual, por \textit{pass-through}, uma das duas placas do servidor, balanceando o uso entre elas e impedindo que duas máquinas liguem a mesma placa ao mesmo tempo. A validação em ambiente real (Seção~\ref{sec:val_gpu}) confirmou a GPU visível dentro da VM.
+
 \section{Trabalhos Futuros}
 
 Entre os itens que permanecem como trabalho futuro, destacam-se:

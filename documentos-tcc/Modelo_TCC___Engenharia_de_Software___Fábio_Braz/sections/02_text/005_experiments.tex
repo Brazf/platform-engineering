@@ -30,6 +30,7 @@ Além de criar o recurso, validou-se que é possível gerar e utilizar conteúdo
 \figimg{fig:val_logs_container}{Terminal e logs do contêiner PostgreSQL: conexão via \texttt{psql} e listagem das tabelas criadas}{front-tela-terminal-container}{captura de tela do ProxLab}
 
 \section{Validação de \textit{pass-through} de GPU}
+\label{sec:val_gpu}
 
 Esta validação verifica se uma máquina virtual criada pela plataforma consegue acessar uma GPU física do servidor por meio de \textit{pass-through} de dispositivo PCIe, requisito de cargas de IA/ML. O servidor possui duas placas NVIDIA GeForce RTX 4060, expostas no Proxmox VE como \textit{resource mappings} PCI (\texttt{gpu-rtx4060-01} e \texttt{gpu-rtx4060-02}); o \textit{backend} escolhe o \textit{mapping} no momento da criação, distribuindo as máquinas entre as duas placas.
 
