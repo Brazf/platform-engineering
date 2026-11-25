@@ -28,7 +28,6 @@ type Runner struct {
 	execPath string
 	root     string
 	node     string
-	gpuPCI   string
 	env      map[string]string // env completo passado ao processo terraform
 }
 
@@ -50,7 +49,6 @@ func NewRunner(cfg *config.Config) (*Runner, error) {
 		execPath: cfg.TerraformBin,
 		root:     cfg.TerraformWorkdir,
 		node:     cfg.ProxmoxNode,
-		gpuPCI:   cfg.ProxmoxGPUPCI,
 		env:      env,
 	}, nil
 }
@@ -109,7 +107,7 @@ func (r *Runner) Provision(ctx context.Context, workspaceID uuid.UUID, spec repo
 		return 0, fmt.Errorf("erro ao criar workspace: %w", err)
 	}
 
-	hcl, err := Render(spec, r.node, r.gpuPCI)
+	hcl, err := Render(spec, r.node)
 	if err != nil {
 		_ = os.RemoveAll(dir)
 		return 0, err
@@ -152,6 +150,16 @@ func (r *Runner) Provision(ctx context.Context, workspaceID uuid.UUID, spec repo
 		return 0, fmt.Errorf("output vmid inválido: %w", err)
 	}
 	return vmid, nil
+}
+
+// applyError traduz a falha do apply. Sem Mapping.Use o admin precisa ajustar a ACL
+// do Proxmox; o texto bruto fica só no log.
+func applyError(err error) error {
+	if strings.Contains(err.Error(), "Mapping.Use") {
+		log.Printf("[terraform] token sem Mapping.Use no resource mapping da GPU — ajustar ACL no Proxmox (PVEMappingUser em /mapping/pci/<mapping>): %v", err)
+		return fmt.Errorf("terraform apply falhou: %w: %w", repository.ErrGPUNotPermitted, err)
+	}
+	return fmt.Errorf("terraform apply falhou: %w", err)
 }
 
 // Deprovision roda destroy e remove o workspace.

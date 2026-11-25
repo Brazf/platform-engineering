@@ -108,6 +108,33 @@ npm run dev   # inicia em http://localhost:3000
 
 > Em dev, o frontend em `localhost:3000` não consegue alcançar o backend em `localhost:8080` pelo nginx. Use o Docker Compose ou configure um proxy no sistema operacional.
 
+### Túnel SSH para o cluster k3s (containers)
+
+Pela VPN do laboratório só a porta 22 chega à VM `k3s-server` (172.26.3.250). Sem o túnel, as rotas de containers falham com
+`dial tcp 172.26.3.250:6443: i/o timeout`. Faça isso **toda vez** que ligar o notebook/VPN ou o túnel cair:
+
+```bash
+# 1. Abre o túnel em segundo plano: localhost:6443 → API do k3s
+ssh -f -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
+  -L 6443:127.0.0.1:6443 \
+  -i ~/.proxlab/terraform/k3s/id_ed25519 ubuntu@172.26.3.250
+
+# 2. Confere: deve imprimir 401 (API respondeu, sem credencial)
+curl -sk -o /dev/null -w "%{http_code}\n" https://127.0.0.1:6443/version
+```
+
+O `backend/.env` precisa apontar para o kubeconfig que usa `127.0.0.1` (só em dev):
+
+```
+KUBECONFIG_PATH=/Users/<você>/.proxlab/terraform/k3s/kubeconfig-tunnel
+```
+
+Depois reinicie o backend (`go run ./cmd/server`), pois o cliente do k3s é criado na inicialização.
+
+- Ver se o túnel está aberto: `lsof -iTCP:6443 -sTCP:LISTEN`
+- Fechar o túnel: `pkill -f "6443:127.0.0.1:6443"`
+- Em produção (backend dentro da rede do laboratório) não há túnel: `KUBECONFIG_PATH` usa o kubeconfig original, com `172.26.3.250:6443`.
+
 ---
 
 ## Comandos úteis

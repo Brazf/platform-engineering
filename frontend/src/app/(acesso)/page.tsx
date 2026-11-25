@@ -4,12 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PasswordToggle } from "@/components";
 import { apiLogin, saveAuth } from "@/lib/api";
 
 export default function Home() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -62,18 +64,14 @@ export default function Home() {
               <div className="flex h-10 items-center gap-2 rounded-[4px] border border-[#888888] bg-white pl-4 pr-1">
                 <Image src="/assets/access/icon-lock.svg" alt="Ícone senha" width={14} height={16} className="h-4 w-[14px]" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="Senha"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleLogin()}
                   className="h-full w-full bg-transparent text-[14px] italic outline-none placeholder:text-black"
                 />
-                <button type="button" aria-label="Mostrar senha" className="flex h-8 w-8 items-center justify-center text-[#1351B4]">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                    <path d="M12 5c-5.2 0-9.3 4.2-10.8 6.1a1.4 1.4 0 0 0 0 1.8C2.7 14.8 6.8 19 12 19s9.3-4.2 10.8-6.1a1.4 1.4 0 0 0 0-1.8C21.3 9.2 17.2 5 12 5Zm0 11a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-                  </svg>
-                </button>
+                <PasswordToggle visible={showPassword} onToggle={() => setShowPassword(v => !v)} />
               </div>
             </div>
 

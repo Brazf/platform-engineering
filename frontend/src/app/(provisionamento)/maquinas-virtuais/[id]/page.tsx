@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { DetailHeader, FORM, Field, Group, InternalBreadcrumb, InternalHeader, PageNotice } from "@/components";
-import { apiDeleteVM, apiGetVM, apiStartVM, apiStopVM, VM_STATUS_LABEL, type VM } from "@/lib/api";
+import { apiDeleteVM, apiGetVM, apiStartVM, apiStopVM, gpuLabel, VM_STATUS_LABEL, type VM } from "@/lib/api";
 
 export default function MaquinaVirtualDetalhePage() {
   const params = useParams();
@@ -111,7 +111,7 @@ export default function MaquinaVirtualDetalhePage() {
                   <Field label="Núcleos de CPU">{vm.cpu_cores}</Field>
                   <Field label="Memória">{vm.memory_mb / 1024} GB</Field>
                   <Field label="Disco">{vm.disk_gb} GB</Field>
-                  <Field label="GPU">{vm.require_gpu ? "sim" : "não"}</Field>
+                  <Field label="GPU">{gpuLabel(vm)}</Field>
                   <Field label="Criado em">{new Date(vm.created_at).toLocaleString("pt-BR")}</Field>
                 </Group>
 

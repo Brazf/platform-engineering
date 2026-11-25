@@ -1,0 +1,29 @@
+\chapter{Introdução}
+
+A crescente demanda por agilidade e eficiência no ciclo de desenvolvimento de software e pesquisa tem impulsionado transformações significativas na maneira como a infraestrutura de tecnologia é gerenciada e provisionada. Tradicionalmente, o processo de solicitação e configuração de ambientes computacionais, sejam máquinas virtuais (VMs) ou contêineres, bem como a instalação de dependências e ferramentas específicas, representa um gargalo considerável para desenvolvedores e pesquisadores. A complexidade inerente à gestão de infraestrutura de baixo nível, a necessidade de múltiplos conhecimentos técnicos e o tempo de espera envolvido na interação com equipes de infraestrutura ou operações frequentemente resultam em atrasos no projeto e na diminuição da produtividade \cite{KunalBhandari}.\\
+
+Nesse cenário, a \textit{Engenharia de Plataforma} surge como uma disciplina fundamental. Ela se concentra em criar e manter ferramentas e infraestrutura que capacitam os usuários, sejam desenvolvedores, pesquisadores ou outros profissionais, a consumir recursos de tecnologia de forma autônoma e eficiente, sem a necessidade de aprofundar-se nos detalhes complexos da infraestrutura subjacente \cite{cncfPlatforms:online,Anjum2026}. O objetivo primário é otimizar a Experiência do Pesquisador (\textit{Researcher Experience} — RX) — adaptação do conceito de \textit{Developer Experience} \cite{Fagerholm2012,Greiler2023} —, permitindo que os pesquisadores se concentrem em suas atividades principais, e não no provisionamento e na manutenção de seus ambientes.\\
+
+Diante desse contexto, este trabalho apresenta o desenvolvimento do \textbf{ProxLab}, uma \textbf{Plataforma de Engenharia Self-Service} voltada para alunos e pesquisadores de um ambiente acadêmico de virtualização \textit{on-premises}. A plataforma oferece um portal web onde os usuários definem suas necessidades de infraestrutura, escolhendo entre máquinas virtuais e contêineres de aplicação, dentro de limites de recursos definidos por perfil de usuário (aluno ou pesquisador). Diferentemente da abordagem inicialmente concebida — que previa a automação de configuração por meio do Ansible —, a solução final adota uma arquitetura híbrida: a orquestração de máquinas virtuais no Proxmox VE é feita via \textit{Terraform} (Infraestrutura como Código), enquanto o provisionamento de contêineres de aplicação é realizado em um cluster Kubernetes (\textit{k3s}) dedicado, isolando cada usuário em um \textit{namespace} próprio e expondo os serviços via \textit{Ingress} ou \textit{NodePort}. Essa mudança de arquitetura, motivada pelas particularidades do provisionamento de contêineres, elimina a necessidade de um passo intermediário de configuração e aproxima a plataforma de práticas nativas de orquestração de contêineres, mantendo o objetivo original de reduzir a complexidade técnica exposta ao usuário final.
+
+
+
+
+\par O código-fonte e o material complementar constam no Apêndice~\ref{apendice:material}.
+
+\section{Objetivos}
+
+\subsection*{Objetivo Geral}
+Desenvolver e implementar uma Plataforma de Engenharia Self-Service capaz de automatizar e simplificar a provisão de ambientes de infraestrutura virtualizados \textit{on-premises} — máquinas virtuais e contêineres de aplicação —, abstraindo a complexidade técnica para o usuário final e acelerando o ciclo de pesquisa e desenvolvimento.
+
+\subsection*{Objetivos Específicos}
+\begin{itemize}
+    \item Projetar e construir um portal web que permita aos usuários (alunos e pesquisadores) selecionar e personalizar as especificações de sua infraestrutura, como tipo de recurso (VM ou contêiner), quantidade de CPU, memória e armazenamento, dentro de limites definidos pelo perfil do usuário.
+    \item Integrar o portal com o Terraform para orquestrar a criação e a remoção de máquinas virtuais no Proxmox VE, com base nas escolhas do usuário.
+    \item Implementar o provisionamento de contêineres de aplicação em um cluster Kubernetes dedicado, incluindo isolamento por \textit{namespace}, aplicação de quotas por perfil e exposição de serviços via rede.
+    \item Prover acesso interativo aos ambientes provisionados, por meio de terminal web tanto para máquinas virtuais (via proxy WebSocket para o Proxmox) quanto para contêineres (via \textit{exec} no cluster Kubernetes).
+    \item Validar a plataforma em ambiente real e analisar, de forma qualitativa, seus efeitos sobre a autonomia dos usuários, a dependência de equipes de TI para configurações básicas e a padronização dos ambientes dedicados às atividades de desenvolvimento e pesquisa.
+\end{itemize}
+
+
+\clearpage

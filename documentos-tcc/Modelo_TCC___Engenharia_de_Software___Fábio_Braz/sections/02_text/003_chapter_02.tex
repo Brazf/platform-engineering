@@ -1,0 +1,94 @@
+\chapter{Metodologia}
+\label{chapter:metodologia}
+
+Este capítulo descreve, em alto nível, como o trabalho foi conduzido: a classificação da pesquisa, a elicitação dos requisitos, as etapas de desenvolvimento da solução e a forma de validação. Os detalhes técnicos do que foi construído são apresentados no Capítulo~\ref{chapter:implementacao}.
+
+\section{Caracterização da pesquisa}
+
+Este trabalho adotou a abordagem de Prova de Conceito (PoC), em um estudo de caso aplicado ao ambiente de virtualização \textit{on-premises} de um laboratório acadêmico, para validar a viabilidade técnica e prática de uma Plataforma de Engenharia Self-Service (\textit{Internal Research Platform}) voltada à automação da infraestrutura virtualizada. O objetivo geral é o descrito na Seção~1.1: automatizar e simplificar o provisionamento de máquinas virtuais e contêineres de aplicação, abstraindo a complexidade técnica para o usuário final.\\
+\par A PoC foi conduzida de maneira incremental, com o sistema evoluindo em fases sucessivas, cada uma agregando uma capacidade completa e testável à plataforma. A escolha se justifica por tratar-se de uma solução que integra múltiplas ferramentas de infraestrutura (Proxmox, Terraform, Kubernetes) em um único portal \textit{self-service}, cujo objetivo principal é validar a viabilidade e os benefícios dessa integração de forma prática e demonstrável. O desenvolvimento incremental permitiu identificar rapidamente obstáculos técnicos — como a necessidade de abandonar o Ansible em favor de uma orquestração nativa em Kubernetes para contêineres — e ajustar a arquitetura ao longo do trabalho.
+
+\section{Elicitação de requisitos}
+\label{sec:elicitacao}
+
+Os requisitos foram levantados a partir do problema observado no ambiente do laboratório — a solicitação de máquinas virtuais depende de interação direta com quem administra o Proxmox VE — e das definições do pré-projeto e das reuniões de orientação. Definiram-se dois perfis de usuário, com limites de recursos distintos: o \textit{aluno}, com limites menores, e o \textit{pesquisador}, com limites maiores e responsável pelo cadastro de novos usuários. A Tabela~\ref{tab:requisitos} resume os principais requisitos identificados. O levantamento partiu da demanda apresentada pelo professor Elton Bezerra Torres, orientador deste trabalho, que já dispunha da base dos requisitos que orientaram o projeto; toda a informação inicial passou por ele, por meio de áudios, documentos e reuniões de requisitos realizadas por videoconferência.
+
+\begin{table}[htb]
+    \centering
+    \caption{Principais requisitos da plataforma}
+    \label{tab:requisitos}
+    \begin{tabularx}{\textwidth}{|l|X|}
+        \hline
+        \textbf{Id} & \textbf{Requisito} \\ \hline
+        \multicolumn{2}{|l|}{\textit{Requisitos funcionais}} \\ \hline
+        RF01 & Autenticar usuários e diferenciar os perfis aluno e pesquisador \\ \hline
+        RF02 & Cadastro de usuários realizado apenas por pesquisadores (sem autocadastro) \\ \hline
+        RF03 & Criar, listar, ligar, desligar e excluir máquinas virtuais, dentro dos limites do perfil \\ \hline
+        RF04 & Criar, listar e excluir contêineres de aplicação, dentro das quotas do perfil \\ \hline
+        RF05 & Acessar o terminal das VMs e dos contêineres pelo navegador \\ \hline
+        RF06 & Expor serviços dos contêineres na rede (HTTP ou TCP) \\ \hline
+        RF07 & Permitir o uso de GPU em cargas de IA/ML, anexando uma GPU física à máquina virtual (\textit{pass-through}) \\ \hline
+        \multicolumn{2}{|l|}{\textit{Requisitos não funcionais}} \\ \hline
+        RNF01 & Provisionamento reprodutível, definido como código \\ \hline
+        RNF02 & Credenciais da infraestrutura nunca expostas ao usuário final \\ \hline
+        RNF03 & Isolamento entre usuários \\ \hline
+        RNF04 & Interface simples, sem exigir conhecimento da infraestrutura subjacente \\ \hline
+    \end{tabularx}
+    \par\small Fonte: elaborado pelo autor.
+\end{table}
+
+\par Como o desenvolvimento foi incremental, esse levantamento inicial foi refinado ao longo das fases, à medida que cada capacidade era detalhada nas reuniões de orientação. Ao final, os requisitos foram consolidados e rastreados até a implementação, tomando como base as rotas da API, com seus métodos HTTP, e as regras de negócio aplicadas no \textit{backend}. Todos os requisitos da Tabela~\ref{tab:requisitos} têm correspondência na implementação. Além deles, o refinamento resultou nos requisitos da Tabela~\ref{tab:requisitos_complementares}, que complementam os anteriores sem substituí-los. A coluna \textit{Evidência} indica a rota ou a regra do sistema de onde cada requisito foi derivado.
+
+{\small
+\begin{longtable}{|l|p{7.4cm}|p{4.9cm}|}
+    \caption{Requisitos complementares derivados do sistema implementado}
+    \label{tab:requisitos_complementares} \\
+    \hline
+    \textbf{Id} & \textbf{Requisito} & \textbf{Evidência} \\ \hline
+    \endfirsthead
+    \hline
+    \textbf{Id} & \textbf{Requisito} & \textbf{Evidência} \\ \hline
+    \endhead
+    \multicolumn{3}{|l|}{\textit{Requisitos funcionais}} \\ \hline
+    RF08 & Consultar os detalhes de uma máquina virtual e reiniciá-la & \path{GET /api/vms/:id}; \path{POST /api/vms/:id/reboot} \\ \hline
+    RF09 & Gerar, para VMs Ubuntu, usuário e senha de acesso por VM, exibidos ao usuário uma única vez, na criação & Resposta \path{201} de \path{POST /api/vms} (campo \textit{credentials}) \\ \hline
+    RF10 & Impedir que uma VM com GPU seja ligada enquanto a placa estiver em uso por outra VM, informando o conflito ao usuário & \path{POST /api/vms/:id/start} (resposta \path{409}) \\ \hline
+    RF11 & Consultar o catálogo de imagens disponíveis para contêineres & \path{GET /api/containers/catalog} \\ \hline
+    RF12 & Configurar, na criação do contêiner, variáveis de ambiente, comando, porta e protocolo (HTTP ou TCP) e volume persistente & Corpo de \path{POST /api/containers} \\ \hline
+    RF13 & Consultar os detalhes e os \textit{logs} de um contêiner & \path{GET /api/containers/:id}; \path{GET /api/containers/:id/logs} \\ \hline
+    RF14 & Consultar e atualizar os dados do próprio perfil e alterar a própria senha, mediante a senha atual & \path{GET} e \path{PATCH /api/me}; \path{PUT /api/me/password} \\ \hline
+    RF15 & Listar os usuários cadastrados, com filtro por perfil, alterar o \textit{e-mail} e excluir usuários (apenas pesquisador), removendo também as VMs e os contêineres do usuário excluído & \path{GET /api/users}; \path{PATCH} e \path{DELETE /api/users/:id} \\ \hline
+    \multicolumn{3}{|l|}{\textit{Requisitos não funcionais}} \\ \hline
+    RNF05 & Limites de recursos por perfil: aluno com até 2 CPUs, 4 GB de memória, 5 contêineres e 20 GB de armazenamento persistente; pesquisador com até 8 CPUs, 16 GB, 20 contêineres e 100 GB. Perfil desconhecido recebe os limites do aluno & Regras de limite do \textit{backend}; resposta de erro de limite excedido \\ \hline
+    RNF06 & Todas as rotas, exceto o \textit{login}, exigem autenticação por \textit{token} JWT com validade configurável; a gestão de usuários é restrita ao perfil pesquisador & \textit{Middleware} de autenticação e de perfil; respostas \path{401} e \path{403} \\ \hline
+    RNF07 & Senhas armazenadas apenas na forma de \textit{hash} (\textit{bcrypt}), com tamanho mínimo de 8 caracteres & Cadastro e troca de senha \\ \hline
+    RNF08 & Cada usuário acessa somente as suas próprias VMs e contêineres; contêineres ficam em \textit{namespace} próprio, com quota; o \textit{resource pool} das VMs é definido pelo \textit{backend} conforme o perfil, nunca pelo usuário & Verificação de propriedade nos casos de uso; \textit{namespace} por usuário \\ \hline
+    RNF09 & Erros internos da infraestrutura (Proxmox VE, Terraform, Kubernetes) não são repassados ao usuário, que recebe mensagens genéricas em português & Tratamento de erros nos \textit{handlers} \\ \hline
+    RNF10 & Configuração e segredos fornecidos por variáveis de ambiente, sem valores sensíveis no código-fonte & Módulo de configuração do \textit{backend} \\ \hline
+    RNF11 & API documentada no padrão OpenAPI (Swagger) & Rota \path{/swagger} e arquivo \path{swagger.yaml} \\ \hline
+    RNF12 & Código organizado em camadas desacopladas por interfaces, com testes automatizados e testes de fumaça contra o ambiente real & Estrutura do \textit{backend}; \path{cmd/proxmox-check} \\ \hline
+\end{longtable}
+}
+
+\section{Desenvolvimento da solução}
+\label{sec:desenvolvimento}
+
+O desenvolvimento foi dividido nas seguintes fases, cada uma entregando uma capacidade completa e validada antes do início da seguinte:
+
+\begin{enumerate}
+    \item \textbf{Autenticação e usuários}: mecanismo de autenticação e perfis de acesso;
+    \item \textbf{Máquinas virtuais no Proxmox}: integração inicial com a API do Proxmox VE para criação, consulta e remoção de VMs;
+    \item \textbf{Terminal web}: acesso interativo às VMs diretamente pelo navegador;
+    \item \textbf{Integração \textit{frontend}/\textit{backend}}: portal web conectado ao \textit{backend}, cobrindo o fluxo principal para o usuário final;
+    \item \textbf{Migração para Infraestrutura como Código}: substituição do provisionamento imperativo por declarações Terraform;
+    \item \textbf{Contêineres de aplicação em k3s}: segundo modelo de recurso, sobre um \textit{cluster} Kubernetes dedicado;
+    \item \textbf{Gestão de usuários e perfil}: cadastro por pesquisadores, tela de perfil e listagem/exclusão de usuários.
+\end{enumerate}
+
+\par Estas fases podem ser vistas na Figura~\ref{fig:fases_desenvolvimento}.
+
+\figimg{fig:fases_desenvolvimento}{Etapas de desenvolvimento da PoC}{fases_desenvolvimento}{elaboração própria}
+
+\section{Validação}
+
+A validação consistiu em testes de fluxo de trabalho executados contra o ambiente real do laboratório (Proxmox VE e \textit{cluster} k3s), tanto por utilitários de linha de comando quanto pelo uso ponta a ponta do portal, conforme descrito no Capítulo~\ref{chapter:experimentos}. Os resultados são confrontados com os objetivos específicos no Capítulo~\ref{chapter:resultados}.

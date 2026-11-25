@@ -49,10 +49,16 @@ func main() {
 	}
 
 	authUC := usecase.NewAuthUseCase(userRepo, cfg.JWTSecret, cfg.JWTExpiryHours)
-	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID)
+	profileUC := usecase.NewProfileUseCase(userRepo)
+	vmUC := usecase.NewVMUseCase(vmRepo, proxmoxClient, provisioner, cfg.ProxmoxNode, cfg.ProxmoxUbuntuTemplateVMID,
+		map[string]string{"aluno": cfg.ProxmoxPoolAluno, "pesquisador": cfg.ProxmoxPoolPesquisador},
+		cfg.ProxmoxGPUMappings)
 	containerUC := usecase.NewContainerUseCase(containerRepo, containerRuntime, cfg.IngressDomain, cfg.K3SNodeHost())
+	userAdminUC := usecase.NewUserAdminUseCase(userRepo, vmRepo, containerRepo, vmUC, containerUC)
 
 	authH := handler.NewAuthHandler(authUC)
+	profileH := handler.NewProfileHandler(profileUC)
+	userAdminH := handler.NewUserAdminHandler(userAdminUC)
 	vmH := handler.NewVMHandler(vmUC)
 	containerH := handler.NewContainerHandler(containerUC)
 	containerTermH := wshandler.NewContainerTerminalHandler(containerUC, containerRuntime)
@@ -80,8 +86,20 @@ func main() {
 	protected := r.Group("/api")
 	protected.Use(middleware.Auth(cfg.JWTSecret))
 	{
-		// Cadastro de usuários: só pesquisadores criam contas (alunos concluem no primeiro acesso).
-		protected.POST("/users", middleware.RequireRole("pesquisador"), authH.Register)
+		// Usuários: só pesquisadores cadastram (alunos concluem no primeiro acesso), listam,
+		// trocam e-mail e excluem (a exclusão apaga as VMs e containers da pessoa).
+		users := protected.Group("/users", middleware.RequireRole("pesquisador"))
+		{
+			users.POST("", authH.Register)
+			users.GET("", userAdminH.List)
+			users.PATCH("/:id", userAdminH.UpdateEmail)
+			users.DELETE("/:id", userAdminH.Delete)
+		}
+
+		// Meu perfil: qualquer usuário logado lê/edita os próprios dados (e-mail é fixo).
+		protected.GET("/me", profileH.Get)
+		protected.PATCH("/me", profileH.Update)
+		protected.PUT("/me/password", profileH.ChangePassword)
 
 		vms := protected.Group("/vms")
 		{

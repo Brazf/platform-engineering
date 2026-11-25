@@ -20,7 +20,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   tags          = [{{ range $i, $t := .Tags }}{{ if $i }}, {{ end }}"{{ hcl $t }}"{{ end }}]
 {{- end }}
 {{- if .CloneVMID }}
-  started       = true
+  started       = {{ if .GPUMapping }}false{{ else }}true{{ end }}
 
   clone {
     vm_id = {{ .CloneVMID }}
@@ -101,12 +101,12 @@ resource "proxmox_virtual_environment_vm" "vm" {
   }
   boot_order = ["ide2", "scsi0"]
 {{- end }}
-{{- if .GPUPCI }}
+{{- if .GPUMapping }}
 
   hostpci {
-    device = "hostpci0"
-    id     = "{{ hcl .GPUPCI }}"
-    pcie   = true
+    device  = "hostpci0"
+    mapping = "{{ hcl .GPUMapping }}"
+    pcie    = true
   }
 {{- end }}
 }

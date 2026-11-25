@@ -7,6 +7,7 @@ import (
 	"github.com/proxlab/backend/internal/domain/repository"
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	applycorev1 "k8s.io/client-go/applyconfigurations/core/v1"
@@ -66,6 +67,16 @@ func (r *Runtime) EnsureNamespace(ctx context.Context, ns string, q repository.R
 			))
 	if _, err := r.cs.NetworkingV1().NetworkPolicies(ns).Apply(ctx, np, applyOpts); err != nil {
 		return fmt.Errorf("erro ao aplicar networkpolicy: %w", err)
+	}
+	return nil
+}
+
+// DeleteNamespace remove o namespace do usuário (quota, limitrange e policy vão junto).
+// A remoção é assíncrona no cluster; não esperamos o namespace sumir.
+func (r *Runtime) DeleteNamespace(ctx context.Context, ns string) error {
+	err := r.cs.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("erro ao remover namespace %s: %w", ns, err)
 	}
 	return nil
 }

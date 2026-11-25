@@ -12,6 +12,7 @@ export const FORM = {
   value: "flex h-10 items-center text-[15px] text-black",
   linkBtn: "text-[13px] font-semibold text-[#1351B4] hover:underline",
   error: "mt-6 rounded-[4px] border border-[#E52207] bg-[#FDF2F1] px-3 py-2 text-[14px] text-[#B21D38]",
+  success: "mt-6 rounded-[4px] border border-[#168821] bg-[#E3F5E1] px-3 py-2 text-[14px] text-[#0B5B13]",
   primaryBtn:
     "flex h-[42px] items-center justify-center rounded-[21px] bg-[#1351B4] px-7 text-[16.8px] leading-none font-semibold text-white hover:bg-[#0F4499] disabled:opacity-60",
   dangerBtn:
@@ -37,13 +38,13 @@ export const STATUS_DOT: Record<string, string> = {
   unknown: "#FA1D1D",
 };
 
-/** Cartão branco do formulário: título, linha de contexto e seções. */
+/** Cartão branco do formulário: título, linha de contexto e seções. Cresce na altura se o pai esticar (ex.: grid auto-rows-fr). */
 export function FormCard({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mx-auto max-w-[1100px] bg-white px-10 pt-7 pb-9 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+    <section className="mx-auto flex w-full max-w-[1100px] flex-col bg-white px-10 pt-7 pb-9 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
       <p className="text-[12px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">{title}</p>
       {subtitle && <p className="mt-1 text-[14px] text-[#6B6B6B]">{subtitle}</p>}
-      <div className="mt-7 flex flex-col gap-7">{children}</div>
+      <div className="mt-7 flex flex-1 flex-col gap-7">{children}</div>
     </section>
   );
 }
@@ -172,6 +173,51 @@ export function DetailHeader({ name, description, status }: { name: string; desc
       <div className="flex flex-col items-end gap-1">
         <StatusBadge {...status} />
         {status.message && <p className="max-w-[360px] text-right text-[13px] leading-[18px] text-[#6B6B6B]">{status.message}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** Etiqueta neutra (mesmo formato do StatusBadge, sem bolinha). Ex.: perfil do usuário. */
+export function Tag({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-[#E3E3E3] bg-[#FAFAFA] px-3 py-1 text-[11px] font-bold tracking-[1px] text-[#555] uppercase">
+      {children}
+    </span>
+  );
+}
+
+/** Item de lista com ações próprias (não é link). Mesmo visual do ResourceCard. */
+export function ListCard({
+  name, description, badge, fields, actions,
+}: { name: string; description?: ReactNode; badge?: ReactNode; fields: { label: string; value: ReactNode }[]; actions?: ReactNode }) {
+  return (
+    <div className="bg-white px-8 py-6 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[20px] leading-none font-semibold text-black">{name}</p>
+          {description && <p className="mt-2 text-[14px] leading-[18px] text-[#6B6B6B]">{description}</p>}
+        </div>
+        {badge}
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-4 md:grid-cols-4">
+        {fields.map((f) => (
+          <Field key={f.label} label={f.label}>{f.value}</Field>
+        ))}
+      </div>
+      {actions && <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-[#E3E3E3] pt-4">{actions}</div>}
+    </div>
+  );
+}
+
+/** Janela modal: fundo escurecido, caixa branca com título em caixa alta e ações no rodapé. */
+export function Modal({ title, children, actions }: { title: string; children: ReactNode; actions: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="w-full max-w-[520px] bg-white px-8 pt-6 pb-7 shadow-[0_3px_6px_0_rgba(51,51,51,0.16)]">
+        <p className="text-[12px] leading-[16px] font-bold tracking-[1.5px] text-[#1A1A1A]">{title}</p>
+        <div className="mt-3 text-[14px] leading-[20px] text-[#333]">{children}</div>
+        <div className="mt-7 flex flex-wrap justify-center gap-3">{actions}</div>
       </div>
     </div>
   );

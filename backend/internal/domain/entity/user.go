@@ -16,6 +16,7 @@ const (
 type User struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey"`
 	Email        string    `gorm:"uniqueIndex;not null"`
+	Name         string    `gorm:"type:varchar(120);not null;default:''"`
 	PasswordHash string    `gorm:"not null"`
 	Role         UserRole  `gorm:"type:varchar(20);not null;default:'aluno'"`
 	CreatedAt    time.Time

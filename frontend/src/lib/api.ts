@@ -69,6 +69,58 @@ export async function apiRegister(email: string, password: string, role: string)
   );
 }
 
+/** Usuário na lista de "Usuários cadastrados" (GET /api/users, só pesquisador). */
+export interface UserSummary {
+  id: string;
+  email: string;
+  name: string;
+  role: "aluno" | "pesquisador";
+  created_at: string;
+  vm_count: number;
+  container_count: number;
+}
+
+export async function apiListUsers(): Promise<UserSummary[]> {
+  return request<UserSummary[]>("/api/users");
+}
+
+/** Pesquisador só altera o e-mail; 409 se já estiver em uso. */
+export async function apiUpdateUserEmail(id: string, email: string) {
+  return request<{ id: string; email: string }>(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify({ email }) });
+}
+
+/** Apaga o usuário e todas as VMs e containers dele; 503 se algum recurso não sair. */
+export async function apiDeleteUser(id: string): Promise<void> {
+  return request<void>(`/api/users/${id}`, { method: "DELETE" });
+}
+
+// ─── Meu perfil ───────────────────────────────────────────────────────────────
+
+export interface Profile {
+  id: string;
+  email: string;
+  name: string;
+  role: "aluno" | "pesquisador";
+  created_at: string;
+}
+
+export async function apiGetProfile(): Promise<Profile> {
+  return request<Profile>("/api/me");
+}
+
+/** Só o nome é alterável; e-mail e perfil são fixos. */
+export async function apiUpdateProfile(name: string): Promise<Profile> {
+  return request<Profile>("/api/me", { method: "PATCH", body: JSON.stringify({ name }) });
+}
+
+/** 403 = senha atual incorreta (a mensagem do backend vem no Error). */
+export async function apiChangePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return request<void>("/api/me/password", {
+    method: "PUT",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 // ─── VMs ──────────────────────────────────────────────────────────────────────
 
 export type VMStatus = "creating" | "running" | "stopped" | "error";
@@ -89,6 +141,7 @@ export interface VM {
   pool: string;
   tags: string;
   require_gpu: boolean;
+  gpu_mapping: string; // resource mapping da GPU; vazio em VM sem GPU ou legada
   status: VMStatus;
   created_at: string;
   updated_at: string;
@@ -103,6 +156,12 @@ export async function apiGetVM(id: string): Promise<VM> {
 }
 
 /** Credenciais cloud-init geradas para VMs Ubuntu. Retornadas uma única vez na criação. */
+/** Texto do campo GPU: "sim (<mapping>)", "sim" (legada) ou "não". */
+export function gpuLabel(vm: Pick<VM, "require_gpu" | "gpu_mapping">): string {
+  if (!vm.require_gpu) return "não";
+  return vm.gpu_mapping ? `sim (${vm.gpu_mapping})` : "sim";
+}
+
 export interface VMCredentials {
   username: string;
   password: string;
@@ -114,8 +173,7 @@ export async function apiCreateVM(data: {
   memory_mb: number;
   disk_gb: number;
   os_template: string;
-  pool?: string;
-  require_gpu?: boolean;
+  require_gpu?: boolean; // o pool do Proxmox é escolhido pelo backend conforme o perfil
 }): Promise<{
   id: string;
   proxmox_vm_id: number;

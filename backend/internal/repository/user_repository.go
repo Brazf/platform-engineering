@@ -41,6 +41,12 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity
 	return &user, err
 }
 
+func (r *userRepository) List(ctx context.Context) ([]entity.User, error) {
+	var users []entity.User
+	err := r.db.WithContext(ctx).Order("role DESC, email ASC").Find(&users).Error
+	return users, err
+}
+
 func (r *userRepository) Update(ctx context.Context, user *entity.User) error {
 	return r.db.WithContext(ctx).Save(user).Error
 }

@@ -1,0 +1,31 @@
+\chapter{Conclusões e Trabalhos Futuros}
+\label{chapter:conclusoes_trabalhos_futuros}
+
+\section{Conclusões}
+
+Com base nos objetivos estabelecidos, pode-se afirmar que a Plataforma de Engenharia Self-Service desenvolvida neste trabalho atingiu seu objetivo geral: oferecer a alunos e pesquisadores um portal capaz de provisionar máquinas virtuais e contêineres de aplicação de forma autônoma, sem exigir conhecimento aprofundado da infraestrutura subjacente. A arquitetura final, sustentada por Terraform para VMs e por um cluster Kubernetes dedicado para contêineres, diverge da abordagem originalmente prevista no pré-projeto — que previa o uso de Ansible para configuração de ambientes —, mas preserva a ideia central de reduzir a complexidade técnica exposta ao usuário final, tendo se mostrado, na prática, uma solução mais aderente ao modelo de provisionamento de contêineres adotado.
+
+\par O acesso a GPU para cargas de IA e \textit{machine learning} também foi atendido: o \textit{backend} anexa à máquina virtual, por \textit{pass-through}, uma das duas placas do servidor, balanceando o uso entre elas e impedindo que duas máquinas liguem a mesma placa ao mesmo tempo. A validação em ambiente real (Seção~\ref{sec:val_gpu}) confirmou a GPU visível dentro da VM.
+
+\par Como limitações, destaca-se que a validação foi funcional, conduzida pelo autor em um único nó Proxmox VE e em um cluster k3s de nó único, sem medição controlada de tempo nem participação de um grupo de usuários. Ainda assim, os fluxos completos de criação, uso e remoção de recursos foram exercitados contra a infraestrutura real do laboratório, o que sustenta a viabilidade técnica da proposta.
+
+\section{Trabalhos Futuros}
+\label{sec:trabalhos_futuros}
+
+Entre os itens que permanecem como trabalho futuro, destacam-se:
+
+\begin{itemize}
+    \item Ciclo de vida mais completo para contêineres de aplicação (\textit{start}, \textit{stop}, \textit{restart}) e suporte a \textit{build} de imagens a partir de \textit{Dockerfile} ou \textit{tarball} enviado pelo usuário.
+
+    \item TLS no \textit{Ingress} dos contêineres expostos via domínio, hoje disponibilizados apenas em HTTP.
+
+    \item Validação do acesso externo a contêineres por meio do par \texttt{ip:porta} do \textit{NodePort}, não realizada durante o desenvolvimento devido a restrições da rede VPN utilizada para acesso ao ambiente de laboratório.
+
+    \item Avaliação quantitativa da plataforma, com a medição controlada do tempo de provisionamento em comparação ao processo manual e a aplicação de um questionário de usabilidade a alunos e pesquisadores do laboratório.
+
+    \item Conclusão do cadastro por convite, em que o aluno ativa a própria conta no primeiro acesso por meio de um código enviado por e-mail, e integração ao \textit{backend} da instalação automática de drivers em VMs com GPU (Apêndice~A).
+
+\end{itemize}
+
+Através dessas frentes, a plataforma pode evoluir de uma Prova de Conceito validada para uma ferramenta mais completa de apoio à pesquisa e ao ensino no contexto do laboratório.
+\clearpage

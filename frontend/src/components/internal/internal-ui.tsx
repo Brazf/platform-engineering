@@ -54,6 +54,9 @@ export function InternalHeader() {
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F8F8]">
             <Image src="/assets/internal/icon-bell.svg" alt="Notificações" width={12} height={14} className="h-[14px] w-[12px]" />
           </span>
+          <Link href="/meu-perfil" aria-label="Meu perfil" title="Meu perfil" className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F8F8] hover:bg-[#EEF3FB] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1351B4]/40">
+            <Image src="/assets/internal/icon-profile.svg" alt="" width={12} height={14} className="h-[14px] w-[12px]" />
+          </Link>
           <span className="h-8 w-px bg-[#CCCCCC]" />
           <Link href="/" className="flex h-[39px] w-[79px] items-center justify-center rounded-[20px] text-[16.8px] leading-none font-semibold text-[#1351B4]">
             Sair
@@ -103,12 +106,14 @@ export function InternalBreadcrumb({ label }: { label: string }) {
   );
 }
 
-export function ActionCard({ icon, label, href, height }: { icon: "desktop" | "container" | "userPlus"; label: string; href?: string; height: "121" | "134" }) {
+export function ActionCard({ icon, label, href, height }: { icon: "desktop" | "container" | "userPlus" | "users"; label: string; href?: string; height: "121" | "134" }) {
   const iconNode =
     icon === "desktop" ? (
       <Image src="/assets/internal/icon-computador.png" alt="Máquina Virtual" width={27} height={27} className="h-[27px] w-[27px]" />
     ) : icon === "container" ? (
       <Image src="/assets/internal/icon-container.png" alt="Container" width={30} height={30} className="h-[30px] w-[30px]" />
+    ) : icon === "users" ? (
+      <Image src="/assets/internal/icon-users.svg" alt="Usuários cadastrados" width={30} height={24} className="h-6 w-[30px]" />
     ) : (
       <Image src="/assets/internal/icon-user-plus.svg" alt="Cadastrar usuário" width={30} height={24} className="h-6 w-[30px]" />
     );

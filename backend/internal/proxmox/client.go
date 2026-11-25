@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/proxlab/backend/internal/config"
 )
@@ -32,6 +33,8 @@ type ProxmoxClient struct {
 	tokenID     string
 	tokenSecret string
 	httpClient  *http.Client
+	// pollInterval é o intervalo de WaitTask; zero → 1 s. Campo à parte para os testes.
+	pollInterval time.Duration
 }
 
 // WsBase retorna a base URL do Proxmox com esquema WebSocket (wss://).
@@ -160,6 +163,35 @@ func (c *ProxmoxClient) RebootVM(ctx context.Context, vmid int) (string, error) 
 		return "", fmt.Errorf("erro ao reiniciar VM %d: %w", vmid, err)
 	}
 	return decodeBody[string](resp)
+}
+
+// WaitTask espera a tarefa terminar e devolve o exitstatus ("OK" em sucesso).
+// Proxmox: GET /nodes/{node}/tasks/{upid}/status, a cada pollInterval até status == "stopped".
+// Respeita o ctx (o chamador define o teto).
+func (c *ProxmoxClient) WaitTask(ctx context.Context, upid string) (string, error) {
+	interval := c.pollInterval
+	if interval <= 0 {
+		interval = time.Second
+	}
+	path := fmt.Sprintf("/nodes/%s/tasks/%s/status", c.node, url.PathEscape(upid))
+	for {
+		resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+		if err != nil {
+			return "", fmt.Errorf("erro ao consultar tarefa %s: %w", upid, err)
+		}
+		st, err := decodeBody[pveTaskStatus](resp)
+		if err != nil {
+			return "", err
+		}
+		if st.Status == "stopped" {
+			return st.ExitStatus, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("tarefa %s não terminou: %w", upid, ctx.Err())
+		case <-time.After(interval):
+		}
+	}
 }
 
 // GetTermProxy abre um terminal de texto para a VM via Proxmox termproxy.

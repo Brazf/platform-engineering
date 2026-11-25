@@ -1,0 +1,184 @@
+\chapter{Apêndice}
+\label{apendice:material}
+
+Este apêndice reúne material complementar à implementação da plataforma.
+
+\section{Repositório do código-fonte}
+
+O código-fonte do ProxLab (\textit{backend}, \textit{frontend}, migrações e documentação de projeto) está disponível em:
+
+\begin{center}
+    \url{https://github.com/Brazf/platform-engineering}
+\end{center}
+
+\par O código é distribuído sob a licença Apache, versão 2.0, cujo texto integral acompanha o repositório no arquivo \texttt{LICENSE}.
+
+\section{Variáveis de ambiente do \textit{backend}}
+
+A configuração do \textit{backend} é feita exclusivamente por variáveis de ambiente. Os valores secretos (senhas, \textit{token} do Proxmox VE e segredo do JWT) nunca são versionados.
+
+\begin{longtable}{|p{6.2cm}|p{8.4cm}|}
+    \caption{Variáveis de ambiente do \textit{backend}}
+    \label{tab:variaveis_ambiente} \\
+    \hline
+    \textbf{Variável} & \textbf{Descrição (valor padrão)} \\ \hline
+    \endfirsthead
+    \hline
+    \textbf{Variável} & \textbf{Descrição (valor padrão)} \\ \hline
+    \endhead
+    \texttt{APP\_ENV} & Ambiente de execução; em desenvolvimento executa a migração automática do banco (\texttt{development}) \\ \hline
+    \texttt{SERVER\_PORT} & Porta HTTP do servidor (\texttt{8080}) \\ \hline
+    \texttt{DB\_HOST}, \texttt{DB\_PORT}, \texttt{DB\_USER}, \texttt{DB\_PASSWORD}, \texttt{DB\_NAME} & Conexão com o PostgreSQL \\ \hline
+    \texttt{JWT\_SECRET} & Segredo de assinatura dos \textit{tokens} JWT (obrigatória) \\ \hline
+    \texttt{JWT\_EXPIRY\_HOURS} & Validade do \textit{token} em horas (\texttt{24}) \\ \hline
+    \texttt{PROXMOX\_HOST} & URL da API do Proxmox VE (obrigatória) \\ \hline
+    \texttt{PROXMOX\_NODE} & Nó do Proxmox onde os recursos são criados \\ \hline
+    \texttt{PROXMOX\_TOKEN\_ID}, \texttt{PROXMOX\_TOKEN\_SECRET} & Identificador e segredo do \textit{token} de API (obrigatórias) \\ \hline
+    \texttt{PROXMOX\_POOL\_ALUNO}, \texttt{PROXMOX\_POOL\_PESQUISADOR} & \textit{Resource pool} das VMs de cada perfil, definido pelo \textit{backend} (\texttt{researchers}) \\ \hline
+    \texttt{PROXMOX\_UBUNTU\_TEMPLATE\_VMID} & VMID do \textit{template} \textit{cloud-init} Ubuntu clonado nas VMs Ubuntu (\texttt{9000}) \\ \hline
+    \texttt{PROXMOX\_GPU\_MAPPINGS} & Nomes dos \textit{resource mappings} PCI das GPUs, separados por vírgula; a ordem desempata a escolha; vazio desabilita a GPU \\ \hline
+    \texttt{TERRAFORM\_BIN} & Caminho do binário do Terraform (\texttt{terraform}) \\ \hline
+    \texttt{TERRAFORM\_WORKDIR} & Raiz dos \textit{workspaces} Terraform, um por VM \\ \hline
+    \texttt{K3S\_NODE\_IP}, \texttt{K3S\_NODE\_GATEWAY} & Endereço fixo (CIDR) e \textit{gateway} da VM do cluster k3s \\ \hline
+    \texttt{K3S\_NODE\_POOL} & \textit{Resource pool} da VM do cluster (\texttt{researchers}) \\ \hline
+    \texttt{K3S\_NODE\_CPU}, \texttt{K3S\_NODE\_MEMORY\_MB}, \texttt{K3S\_NODE\_DISK\_GB} & Recursos da VM do cluster (\texttt{8}, \texttt{16384}, \texttt{200}) \\ \hline
+    \texttt{INGRESS\_DOMAIN} & Domínio dos contêineres HTTP; vazio expõe por \textit{NodePort} \\ \hline
+    \texttt{KUBECONFIG\_PATH} & Arquivo de acesso ao cluster; ausente, as rotas de contêineres respondem 503 \\ \hline
+\end{longtable}
+
+\section{Exemplo de configuração Terraform gerada com GPU}
+
+O trecho a seguir mostra, de forma resumida, o \texttt{main.tf} gerado para uma VM Ubuntu com GPU (reticências indicam blocos omitidos). O bloco \texttt{hostpci} referencia o \textit{resource mapping} escolhido pelo \textit{backend}, e a VM nasce desligada (\texttt{started = false}).
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\footnotesize
+\begin{verbatim}
+resource "proxmox_virtual_environment_vm" "vm" {
+  node_name     = "pve01"
+  name          = "minha-vm"
+  pool_id       = "researchers"
+  started       = false
+
+  clone {
+    vm_id = 9000
+    full  = true
+  }
+
+  cpu    { cores = 2 }
+  memory { dedicated = 2048 }
+  # disk, network_device, initialization, agent ...
+
+  hostpci {
+    device  = "hostpci0"
+    mapping = "gpu-rtx4060-01"
+    pcie    = true
+  }
+}
+\end{verbatim}
+\end{minipage}
+\medskip
+
+\section{Permissão do \textit{token} sobre as GPUs}
+
+Para anexar uma GPU, o \textit{token} de API do ProxLab precisa da permissão \texttt{Mapping.Use} em cada \textit{resource mapping}. Ela é concedida pelo administrador do Proxmox VE, uma vez por \textit{mapping}, com o comando:
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\footnotesize
+\begin{verbatim}
+pveum acl modify /mapping/pci/gpu-rtx4060-01 \
+    --tokens '<id-do-token>' --roles PVEMappingUser
+\end{verbatim}
+\end{minipage}
+\medskip
+
+Sem essa permissão, a criação de VM com GPU falha e o usuário recebe a mensagem de que a GPU está temporariamente indisponível. Além disso, a opção \texttt{pcie = true} exige que o \textit{template} usado na clonagem seja da máquina do tipo \texttt{q35}.
+
+\section{\textit{Drivers} e Docker em VMs com GPU}
+
+Anexar a GPU à VM não instala o \textit{driver} de vídeo no sistema convidado. Para abstrair essa dificuldade do usuário, a infraestrutura do laboratório adota o \textit{cloud-init}, com um arquivo \textit{vendor-data} preparado pelo administrador. Esta seção documenta o procedimento; os arquivos de referência (\path{create-template.sh}, \path{vendor-data-gpu.yaml} e o exemplo Terraform \texttt{04-vm-cloud-init}) estão no repositório de infraestrutura do laboratório\footnote{\url{https://github.com/ifpebj-ti/proxmox-infra-cces}}. Nesta versão do ProxLab, o \textit{backend} cria a VM e anexa a GPU; a instalação do \textit{driver} descrita a seguir é o procedimento documentado pela infraestrutura e não está integrada ao \textit{backend}.
+
+Os dois arquivos de referência desta seção estão publicados nos endereços abaixo:
+
+\par Exemplo Terraform de VM com \textit{cloud-init}:
+{\small\begin{center}
+\url{https://github.com/ifpebj-ti/proxmox-infra-cces/tree/main/terraform/examples/04-vm-cloud-init}
+\end{center}}
+
+\par \textit{Vendor-data} de GPU:
+{\small\begin{center}
+\url{https://github.com/ifpebj-ti/proxmox-infra-cces/blob/main/cloud-init/snippets/vendor-data-gpu.yaml}
+\end{center}}
+
+\subsection{Etapas}
+
+\begin{enumerate}
+    \item \textbf{Template (administrador, uma vez).} Criar no host Proxmox VE o \textit{template} \textit{cloud-init} Ubuntu 24.04 (nome \texttt{ubuntu-2404-cloud}), com o \textit{script} de criação de \textit{template} do repositório de infraestrutura.
+    \item \textbf{\textit{Vendor-data} (administrador, uma vez).} Copiar o arquivo de \textit{vendor-data} de GPU para o diretório de \textit{snippets} do \textit{storage} do Proxmox VE, o que o torna disponível pelo identificador mostrado abaixo.
+    \item \textbf{VM (a cada criação).} Na configuração Terraform da VM, além do bloco \texttt{hostpci} da seção anterior, referenciar o \textit{snippet} no bloco \texttt{initialization}.
+\end{enumerate}
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\footnotesize
+\begin{verbatim}
+# Administrador, no host Proxmox VE (uma vez):
+scp vendor-data-gpu.yaml \
+    root@<host>:/datapool/templates/snippets/
+# Identificador do snippet para o Terraform:
+#   datapool-templates:snippets/vendor-data-gpu.yaml
+\end{verbatim}
+\end{minipage}
+\medskip
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\footnotesize
+\begin{verbatim}
+initialization {
+  vendor_data_file_id = "datapool-templates:snippets/vendor-data-gpu.yaml"
+  user_account { username = "pesquisador"  keys = [ ... ] }
+  ip_config { ipv4 { address = "dhcp" } }
+}
+\end{verbatim}
+\end{minipage}
+\medskip
+
+O usuário e a chave de acesso são configurados pela API do Proxmox VE, enquanto os pacotes do sistema vêm do \textit{vendor-data}. Como o arquivo já está no \textit{storage}, o Terraform apenas o referencia: não há envio de arquivos nem acesso SSH ao host.
+
+\subsection{Conteúdo do \textit{vendor-data} de GPU}
+
+No primeiro \textit{boot}, o \textit{cloud-init} executa as ações abaixo (resumo do arquivo de \textit{vendor-data} de GPU):
+
+\begin{itemize}
+    \item instala e habilita o \textit{QEMU Guest Agent};
+    \item instala o Docker Engine, o \textit{Buildx} e o \textit{Compose} a partir do repositório oficial, e adiciona os usuários da VM ao grupo \texttt{docker};
+    \item instala o cliente NFS e monta em \texttt{/mnt/research} o diretório compartilhado de dados de pesquisa do laboratório;
+    \item instala o \textit{driver} NVIDIA de módulo de \textit{kernel} aberto (\texttt{nvidia-driver-595-open});
+    \item reinicia a VM ao final, para que o módulo do \textit{driver} seja carregado.
+\end{itemize}
+
+\medskip
+\noindent\begin{minipage}{\textwidth}
+\footnotesize
+\begin{verbatim}
+#cloud-config
+package_update: true
+packages: [qemu-guest-agent, ca-certificates, curl, gnupg,
+           nfs-common, ubuntu-drivers-common]
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - ... instala docker-ce, docker-compose-plugin ...
+  - ... monta NFS em /mnt/research ...
+  - apt-get install -y nvidia-driver-595-open
+power_state:
+  mode: reboot
+  condition: true
+\end{verbatim}
+\end{minipage}
+\medskip
+
+\subsection{Verificação e cuidados}
+
+Como a VM com GPU nasce desligada, o \textit{cloud-init} executa quando o usuário a liga pela primeira vez. A instalação exige acesso à internet e leva alguns minutos, seguida de uma reinicialização; durante esse período a VM aparece como ligada, mas ainda não está pronta. Concluída a etapa, a instalação pode ser verificada na VM com o comando \texttt{nvidia-smi}. O \textit{snippet} deve ser mantido pelo administrador, pois a versão do \textit{driver} é fixada no arquivo. Também é necessário que o \textit{template} seja do tipo \texttt{q35} (seção anterior) e que a VM alcance o servidor NFS do laboratório.

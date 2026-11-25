@@ -1,0 +1,197 @@
+%
+% Trabalho de Conclusão de Curso (TCC)
+% Campus Belo Jardim
+% Instituto Federal de Pernambuco (IFPE)
+% Belo Jardim Pernambuco Brasil
+% 18 de Outubro de 2014
+%
+% Autor: 
+
+%
+
+\documentclass[oneside, 12pt]{book}
+
+\usepackage[T1]{fontenc}
+\usepackage{quoting}
+\usepackage[brazilian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{units}
+\usepackage{makeidx}  
+\usepackage{float}
+%\usepackage[nottoc]{tocbibind}  
+\usepackage{placeins}
+\usepackage{amsmath}
+\usepackage{tabularx,colortbl}
+\usepackage{multirow}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{lscape}
+\usepackage{subcaption}
+\usepackage{caption}
+\usepackage{setspace} 
+\usepackage[a4paper,top=3cm,bottom=2.0cm,left=3.0cm,right=2cm]{geometry} 
+\usepackage[titletoc]{appendix}
+\usepackage{longtable}
+\usepackage{titling}
+\usepackage{pdfpages}
+\usepackage{titlesec}
+
+\usepackage[ruled,vlined,portuguese]{algorithm2e}
+\SetKwFor{ParaTodo}{para todo}{fa\c{c}a}{fim para todo}
+\SetKwBlock{Inicio}{início}{fim}
+%\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+
+% ---------------------------------------------------------------------------- %
+% Cabeçalhos similares ao TAOCP de Donald E. Knuth
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries}{\thechapter}{20pt}{\Huge}
+\renewcommand{\chaptermark}[1]{\markboth{\MakeUppercase{#1}}{}}
+% número e título da seção no mesmo mark, para o cabeçalho não misturar seções
+\newcommand{\secmark}[2]{#2}
+\makeatletter
+\newcommand{\headsecnum}{{\let\secmark\@firstoftwo\rightmark}}
+\newcommand{\headsectitle}{{\let\secmark\@secondoftwo\rightmark}}
+\makeatother
+\renewcommand{\sectionmark}[1]{\markright{\protect\secmark{\thesection}{\MakeUppercase{#1}}}}
+
+\renewcommand{\headrulewidth}{0pt}
+\setlength{\headheight}{15.1pt}
+
+\frenchspacing                          % arruma o espaço: id est (i.e.) e exempli gratia (e.g.) 
+\urlstyle{same}                         % URL com o mesmo estilo do texto e não mono-spaced
+\makeindex                              % para o índice remissivo
+\raggedbottom                           % para não permitir espaços extra no texto
+% Flutuantes (figuras/tabelas): permitem ocupar mais da página e aparecer no topo ou em página própria, reduzindo espaços em branco
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{2}
+\setcounter{totalnumber}{4}
+% Título não fica isolado no fim da página: ao menos duas linhas do parágrafo seguinte o acompanham
+\clubpenalty=10000
+\widowpenalty=10000
+
+\cleardoublepage
+\normalsize
+
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\usepackage{csquotes}
+\usepackage[style=abnt]{biblatex}
+\bibliography{bibliography}
+\addbibresource{bibliography.bib}
+
+%--------------------------------------------
+% Variáveis importantes
+\title{Plataforma de Engenharia Self-Service: Abstraindo a Complexidade da Infraestrutura para Pesquisa e Inovação}
+\author{Fábio Braz Ferreira}
+\date{02/12/2026}
+% Espaço reservado para figura: \figplaceholder{rótulo}{legenda}{o que inserir}{fonte}
+% Para trocar pela imagem real, substitua o \fbox por \includegraphics[width=0.9\textwidth]{images/arquivo.png}
+\newcommand{\figplaceholder}[4]{%
+  \begin{figure}[htb]
+    \centering
+    \fbox{\parbox[c][5cm][c]{0.85\textwidth}{\centering\color{gray}[INSERIR IMAGEM]\\[2mm]\footnotesize #3}}
+    \caption{#2}
+    \label{#1}
+    \par\small Fonte: #4.
+  \end{figure}%
+}
+
+% Figura real: \figimg{rótulo}{legenda}{arquivo em images/ (sem extensão)}{fonte}
+\newcommand{\figimg}[4]{%
+  \begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=0.34\textheight,keepaspectratio]{images/#3}
+    \caption{#2}
+    \label{#1}
+    \par\small Fonte: #4.
+  \end{figure}%
+}
+
+% Figura com altura máxima customizada (#5, em fração de \textheight), para caber na página do texto que a cita
+\newcommand{\figimgh}[5]{%
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=#5\textheight,keepaspectratio]{images/#3}
+    \caption{#2}
+    \label{#1}
+    \par\small Fonte: #4.
+  \end{figure}%
+}
+
+\newcommand{\thecourse}{Bacharelado em Engenharia de Software}
+\newcommand{\thesupervisor}{Elton Bezerra Torres}
+\newcommand{\thelocal}{Belo Jardim, Pernambuco}
+\newcommand{\thequalifiers}{
+{Elton Bezerra Torres - IFPE - Campus Belo Jardim} \hfill  {}\\
+{Hítalo Oliveira da Silva - IFPE - Campus Belo Jardim} \hfill  {}\\
+{Daniel Leite Viana - IFPE - Campus Palmares}
+}
+
+\begin{document}
+	\frontmatter
+    \renewcommand{\refname}{Referências}% para classes report, article, etc
+    \renewcommand{\bibname}{Referências}% para classes baseadas no book
+	
+	\setcounter{tocdepth}{2}
+	%\fancyhead[LE]{\thepage\hspace{2em}\footnotesize{\leftmark}}
+	\fancyhead[RO]{{\footnotesize\headsectitle}\hspace{2em}\thepage}
+	
+	\include{sections/01_pre_text/001_coverpage}
+	\newpage
+	\include{sections/01_pre_text/002_titlepage}
+	\newpage
+    \include{sections/01_pre_text/folha_de_rosto}
+    \newpage
+
+	
+	\include{sections/01_pre_text/003_acknowledgment}
+	\include{sections/01_pre_text/004_resume}
+	\include{sections/01_pre_text/005_abstract}
+	\include{sections/01_pre_text/006_lista_abreviaturas}
+	\include{sections/01_pre_text/007_lista_simbolos}
+
+    \listoffigures		
+	\listoftables
+    \renewcommand\contentsname{\centering Sumário} 
+	\tableofcontents
+	
+	
+	\mainmatter	
+	% cabeçalho para as páginas de todos os capítulos
+	\fancyhead[LO]{\headsecnum}
+	
+	%\singlespacing            % espaçamento simples
+	\onehalfspacing            % espaçamento um e meio
+	
+	\setcounter{page}{1}
+	\include{sections/02_text/001_introduction}
+	\include{sections/02_text/002_chapter_01}
+	\include{sections/02_text/003_chapter_02}
+	\include{sections/02_text/004_chapter_03}
+	\include{sections/02_text/005_experiments}
+	\include{sections/02_text/006_results}
+	\include{sections/02_text/007_conclusions}
+	
+	
+	\fancyhead[RO]{\thepage}
+	\fancyhead[LO]{}
+    \printbibliography[heading=bibintoc]
+    \clearpage
+    
+    \fancyhead[LO]{\MakeUppercase{\appendixname}\,\thechapter}
+	\begin{appendix}
+	    \include{sections/03_pos_text/001_apendice}
+	\end{appendix}
+	
+\end{document} 

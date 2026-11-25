@@ -1,0 +1,45 @@
+\chapter{Experimentos}
+\label{chapter:experimentos}
+
+Para validar o funcionamento da plataforma contra um ambiente Proxmox VE e um cluster k3s reais — e não apenas contra simulações —, foram conduzidas validações de fluxo de trabalho, executadas tanto por utilitários de linha de comando quanto pelo uso ponta a ponta do portal web. Cada validação percorre um fluxo completo, do ponto de vista do usuário, e verifica se o resultado esperado é observado no ambiente real.
+
+\section{Validação de criação de recursos}
+
+Foi implementado um utilitário de linha de comando (\texttt{cmd/proxmox-check}) que exercita o fluxo completo de provisionamento contra a infraestrutura real, em dois modos:
+
+\begin{itemize}
+    \item no modo padrão, cria uma máquina virtual por clone do \textit{template} Ubuntu com \textit{cloud-init} (o mesmo caminho utilizado pelo portal), consulta o seu status e a remove, validando a integração via Terraform e via API REST;
+    \item executado com a opção \texttt{-{}-k3s}, cria, consulta e remove um contêiner de aplicação no cluster k3s real, validando a integração via \texttt{client-go}.
+\end{itemize}
+
+\par Em seguida, o mesmo fluxo foi executado pelo portal web, com a criação de uma máquina virtual Ubuntu — acessada via terminal web e removida — e de um contêiner de aplicação, conforme a Seção~\ref{sec:val_conteudo}. Foram verificados também os limites por perfil: a criação de VM por um usuário com perfil \textit{aluno} é feita no \textit{pool} definido pelo \textit{backend} para esse perfil, independentemente do valor enviado pelo cliente. As Figuras~\ref{fig:val_vm_proxmox} e~\ref{fig:val_saida_smoke} apresentam o resultado dos testes, tanto na interface do Proxmox VE, ao se criar uma VM, como na saída do terminal ao se consultar o k3s, após operações com contêineres.
+
+\figimg{fig:val_vm_proxmox}{Máquina virtual criada pela plataforma, vista na interface do Proxmox VE, com o histórico de tarefas (\textit{resize}, \textit{start} e a remoção da VM do teste de fumaça)}{val_vm_proxmox}{captura de tela do Proxmox VE}
+
+\figimg{fig:val_saida_smoke}{Saída dos testes de fumaça contra o ambiente real: contêiner no cluster k3s (\texttt{-{}-k3s}) e máquina virtual no Proxmox VE}{val_saida_smoke}{captura de tela do terminal}
+
+\section{Validação do uso dos recursos criados}
+\label{sec:val_conteudo}
+
+Além de criar o recurso, validou-se que é possível gerar e utilizar conteúdo dentro dele. Foi criado, pelo portal, um contêiner de aplicação PostgreSQL com variáveis de ambiente, volume persistente e exposição de porta TCP via \textit{NodePort} (Figura~\ref{fig:val_postgres}); foram consultados os logs do contêiner e validada uma conexão via \texttt{psql} (Figura~\ref{fig:val_logs_container}), na qual o banco respondeu às consultas, antes de o contêiner ser removido. De modo análogo, na VM Ubuntu, o terminal web foi utilizado para executar comandos no sistema criado.
+
+\par O acesso externo a um contêiner por meio do par \texttt{ip:porta} do \textit{NodePort} não pôde ser validado durante o desenvolvimento, pois a rede VPN utilizada para acesso ao ambiente de laboratório bloqueia o tráfego de entrada nessas portas a partir de fora da rede interna. Essa validação depende de o \textit{backend} estar em execução na própria VM do laboratório, e é discutida como trabalho futuro no Capítulo~\ref{chapter:conclusoes_trabalhos_futuros}.
+
+\figimg{fig:val_postgres}{Detalhes do contêiner PostgreSQL em execução, com endereço externo (\textit{NodePort}) e variáveis de ambiente}{front-tela-container-em-execucao}{captura de tela do ProxLab}
+
+\figimg{fig:val_logs_container}{Terminal e logs do contêiner PostgreSQL: conexão via \texttt{psql} e listagem das tabelas criadas}{front-tela-terminal-container}{captura de tela do ProxLab}
+
+\section{Validação de \textit{pass-through} de GPU}
+\label{sec:val_gpu}
+
+Esta validação verifica se uma máquina virtual criada pela plataforma consegue acessar uma GPU física do servidor por meio de \textit{pass-through} de dispositivo PCIe, requisito de cargas de IA/ML. O servidor possui duas placas NVIDIA GeForce RTX 4060, expostas no Proxmox VE como \textit{resource mappings} PCI (\texttt{gpu-rtx4060-01} e \texttt{gpu-rtx4060-02}); o \textit{backend} escolhe o \textit{mapping} no momento da criação, distribuindo as máquinas entre as duas placas.
+
+\par A validação foi feita em duas etapas. Na primeira, o utilitário \texttt{cmd/proxmox-check} foi executado com a opção \texttt{-{}-gpu} para cada um dos dois \textit{mappings}: a máquina virtual de teste foi criada com a GPU anexada, nasceu desligada, como previsto pela regra de negócio, e foi removida em seguida, o que confirma a permissão do \textit{token} de API sobre cada \textit{mapping}. Na segunda, a opção \texttt{-{}-gpu-conflict} tentou ligar uma máquina com a GPU já ocupada por outra máquina virtual; o Proxmox VE recusou a inicialização com a mensagem \textit{PCI device already in use}, comportamento que o \textit{backend} traduz em uma resposta de conflito (HTTP 409) e em um aviso ao usuário, mantendo a máquina desligada. Por fim, o terminal web de uma máquina com GPU exibiu a placa por meio do comando \texttt{nvidia-smi}, conforme a Figura~\ref{fig:val_gpu}.
+
+\figimg{fig:val_gpu}{GPU visível dentro da máquina virtual (\texttt{nvidia-smi})}{CAPTURA-TELA-TERMINAL-GPU}{captura de tela do terminal}
+
+\section{Validação de criação e autenticação de usuários}
+
+Validou-se o fluxo de identidade da plataforma: (i) o \textit{login} retorna um \textit{token} JWT e as rotas protegidas rejeitam requisições sem \textit{token} ou com \textit{token} inválido (resposta 401, com redirecionamento para a tela de \textit{login}); (ii) o cadastro de um novo usuário só é aceito quando solicitado por um usuário com perfil \textit{pesquisador}, sendo recusado para o perfil \textit{aluno}; (iii) o usuário consegue alterar seu nome e sua senha, sendo recusada a troca quando a senha atual informada está incorreta; e (iv) o pesquisador consegue listar, alterar o e-mail e excluir usuários, sendo a exclusão acompanhada da remoção das VMs e dos contêineres do usuário (Figura~\ref{fig:val_usuarios}).
+
+\figimg{fig:val_usuarios}{Tela de cadastro de novo usuário pelo pesquisador}{front-tela-cadastro-usuario}{captura de tela do ProxLab}

@@ -70,6 +70,177 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+    get:
+      tags: [auth]
+      summary: Listar todos os usuários (somente pesquisador)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usuários com a contagem de recursos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSummary"
+        "403":
+          description: Perfil sem permissão
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [auth]
+      summary: Alterar o e-mail de um usuário (somente pesquisador)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: E-mail já está em uso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [auth]
+      summary: Excluir usuário e TODAS as VMs e containers dele (somente pesquisador)
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Usuário e recursos apagados
+        "400":
+          description: Tentativa de excluir a própria conta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Usuário não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Algum recurso não saiu; o usuário foi mantido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /me:
+    get:
+      tags: [auth]
+      summary: Dados do usuário logado (Meu perfil)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Perfil
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Sem token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags: [auth]
+      summary: Alterar o nome do usuário logado (e-mail e perfil são fixos)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 120
+                  example: João Silva
+      responses:
+        "200":
+          description: Perfil atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          description: Nome inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /me/password:
+    put:
+      tags: [auth]
+      summary: Trocar a senha do usuário logado
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        "204":
+          description: Senha alterada
+        "400":
+          description: Nova senha fraca ou payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Senha atual incorreta (não é 401 para não encerrar a sessão)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /auth/login:
     post:
       tags: [auth]
@@ -132,7 +303,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "422":
-          description: Limite de recursos excedido para o perfil do usuário
+          description: Limite de recursos excedido para o perfil do usuário, ou GPU pedida sem nenhum resource mapping configurado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Token do Proxmox sem Mapping.Use no mapping da GPU (contatar o administrador)
           content:
             application/json:
               schema:
@@ -236,6 +413,9 @@ paths:
     post:
       tags: [vms]
       summary: Ligar uma VM
+      description: >-
+        VM com GPU só liga se nenhuma outra VM estiver usando o mesmo resource mapping (409 caso contrário);
+        a resposta espera a tarefa de start do Proxmox (até 90 s).
       security:
         - bearerAuth: []
       parameters:
@@ -251,6 +431,18 @@ paths:
                   status:
                     type: string
                     example: running
+        "409":
+          description: GPU da VM em uso por outra VM ligada; a VM continua desligada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Falha ao ligar a VM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: ID de VM inválido
           content:
@@ -620,6 +812,31 @@ components:
           type: string
           enum: [aluno, pesquisador]
 
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [aluno, pesquisador]
+        created_at:
+          type: string
+          format: date-time
+    UserSummary:
+      allOf:
+        - $ref: "#/components/schemas/Profile"
+        - type: object
+          properties:
+            vm_count:
+              type: integer
+            container_count:
+              type: integer
     LoginResponse:
       type: object
       properties:
@@ -652,8 +869,6 @@ components:
         os_template:
           type: string
           example: ubuntu-22.04
-        pool:
-          type: string
         tags:
           type: array
           items:
@@ -661,6 +876,7 @@ components:
         require_gpu:
           type: boolean
           default: false
+          description: VM com GPU nasce desligada. O backend escolhe o resource mapping (balanceando entre PROXMOX_GPU_MAPPINGS).
 
     CreateVMResponse:
       type: object
@@ -718,11 +934,15 @@ components:
           type: string
         pool:
           type: string
+          description: Resource pool do Proxmox, escolhido pelo backend conforme o perfil (PROXMOX_POOL_ALUNO / PROXMOX_POOL_PESQUISADOR)
         tags:
           type: string
           description: Tags separadas por ";" (formato do Proxmox)
         require_gpu:
           type: boolean
+        gpu_mapping:
+          type: string
+          description: Resource mapping da GPU anexada; vazio em VM sem GPU ou legada
         status:
           type: string
           enum: [creating, running, stopped, error]

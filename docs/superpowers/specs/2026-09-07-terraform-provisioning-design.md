@@ -118,11 +118,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   boot_order = ["ide2", "scsi0"]
   {{- end }}
 
-  {{- if .GPUPCI }}
+  {{- if .GPUMapping }}
   hostpci {
-    device = "hostpci0"
-    id     = "{{ .GPUPCI }}"
-    pcie   = true
+    device  = "hostpci0"
+    mapping = "{{ .GPUMapping }}"
+    pcie    = true
   }
   {{- end }}
 }
@@ -130,9 +130,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
 output "vmid" { value = proxmox_virtual_environment_vm.vm.vm_id }
 ```
 
-`GPUPCI` só é preenchido quando `spec.RequireGPU && cfg.ProxmoxGPUPCI != ""`. O valor de
-`PROXMOX_GPU_PCI` hoje pode vir como `"0000:01:00.0,pcie=1"`; o template usa apenas a parte antes
-da vírgula. Strings vindas do usuário (`Name`, `Tags`, `ISO`) passam por escape HCL
+`GPUMapping` (nome de resource mapping PCI, escolhido pelo backend a partir de
+`PROXMOX_GPU_MAPPINGS`) gera o bloco `hostpci` com `mapping`; `id` (endereço PCI cru) não é usado
+porque o provider não o aceita com API token. VM clonada com GPU nasce desligada (`started = false`).
+Detalhes na spec `2026-11-17-gpu-mapping-e-conflito-start.md`. Strings vindas do usuário (`Name`, `Tags`, `ISO`) passam por escape HCL
 (aspas e barras) antes de renderizar.
 
 ### Layout em disco

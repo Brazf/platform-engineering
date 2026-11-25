@@ -41,8 +41,10 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - WebSocket termproxy: Backend → Proxmox usa `Subprotocols: []string{"binary"}`; protocolo: 1ª mensagem `"<user>:<ticket>\n"` → resposta `OK`; entrada do teclado enquadrada `0:<len>:<dados>`, resize `1:cols:rows:`, ping `2` a cada 30s. Sem o handshake o Proxmox falha com `failed reading ticket: timed out`
 - Provisionamento: Terraform `bpg/proxmox ~> 0.112.0`; um workspace por VM em `$TERRAFORM_WORKDIR/<vm-uuid>`; credenciais só via env do processo (`PROXMOX_VE_ENDPOINT`, `PROXMOX_VE_API_TOKEN`, `PROXMOX_VE_INSECURE`)
 - Env Terraform: `TERRAFORM_BIN`, `TERRAFORM_WORKDIR`
+- Pools: `PROXMOX_POOL_ALUNO`, `PROXMOX_POOL_PESQUISADOR` (default `researchers`); o pool é decidido pelo backend conforme o perfil, nunca pelo payload
 - VMs Ubuntu: clone completo do template cloud-init `PROXMOX_UBUNTU_TEMPLATE_VMID` (default 9000, `ubuntu-2404-cloud`); nascem ligadas, com usuário `ubuntu` e senha gerada por VM, devolvida uma única vez em `credentials` no `201` de `POST /api/vms` (não persistida). Outros SOs seguem o fluxo de VM vazia.
 - VMs criadas antes da migração não têm workspace: ao deletar, só o registro sai do banco; a VM é removida manualmente no Proxmox
+- GPU: `PROXMOX_GPU_MAPPINGS` (lista de nomes de resource mapping PCI, ex. `gpu-rtx4060-01,gpu-rtx4060-02`; endereço PCI cru é rejeitado, pois o provider não o aceita com token). Backend atribui o mapping na criação, balanceando (coluna `vms.gpu_mapping`, migration 005). VM com GPU **nasce desligada** (inclusive clone Ubuntu). Start de VM com GPU é serializado e bloqueado com `409` se outra VM ligada/pausada usa o mesmo mapping (pré-checagem + `exitstatus` da tarefa com `already in use`). O token precisa de `Mapping.Use` em `/mapping/pci/<mapping>` (`pveum acl modify /mapping/pci/<x> --tokens '<id>' --roles PVEMappingUser`); sem isso a criação responde 503. `pcie=true` exige template q35. Spec: `docs/superpowers/specs/2026-11-17-gpu-mapping-e-conflito-start.md`. Smokes: `proxmox-check --gpu[=<mapping>]` e `--gpu-conflict[=<mapping>]` (este liga uma VM de teste com a GPU por segundos).
 - Containers: cluster k3s single-node na VM `k3s-server` (criada por `cmd/k3s-bootstrap`, IP fixo `K3S_NODE_IP`). Backend fala com o cluster via `internal/kube` (client-go v0.35, kubeconfig em `KUBECONFIG_PATH`; ausente → rotas de containers respondem 503). Namespace por usuário `u-<8 chars>`, quota por perfil, status lido do cluster a cada request (sem coluna no banco). HTTP + `INGRESS_DOMAIN` → Ingress `http://<nome>-<ns>.<domínio>`; TCP ou sem domínio → NodePort 30000–32767 em `K3S_NODE_IP`; porta 0 = só terminal.
 - Env k3s: `K3S_NODE_IP`, `K3S_NODE_GATEWAY`, `K3S_NODE_CPU`, `K3S_NODE_MEMORY_MB`, `K3S_NODE_DISK_GB`, `INGRESS_DOMAIN`, `KUBECONFIG_PATH`
 - Smoke tests: `go run ./cmd/proxmox-check` (VM) e `go run ./cmd/proxmox-check --k3s` (container no cluster real)
@@ -54,8 +56,14 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - WebSocket aceita `?token=` como query param
 - 401 → redirecionar para /login
 
+## Frontend — design system
+Toda tela interna nova segue `docs/frontend-design-system.md` (padrão de VMs/containers: `@/components` → `FormCard`, `Group`, `FORM.*`, `ResourceCard`...). Ler antes de criar/alterar telas; acrescentar tokens/componentes lá e em `form-ui.tsx`, nunca estilos soltos.
+
+## Documento do TCC
+Qualquer alteração em `documentos-tcc/` segue `documentos-tcc/VERSIONAMENTO.md` (commits por alteração; tag `tcc-vX.Y` só em mudanças grandes e sempre perguntando ao autor antes). Ler antes de mexer no documento.
+
 ## Regras
-- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceção acordada: `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
+- Nunca: lógica em main.go, GORM em handlers, hardcode de credenciais, expor erros internos do Proxmox, alterar CSS/layout do frontend (exceções acordadas: ícone "Meu perfil" no header; `/containers/criar` tem campos adicionados/removidos reutilizando as classes existentes — ver spec de 2026-09-10)
 - Sempre: `if err != nil`, `context.Context` em I/O, validar payload nos handlers, UUIDs como PK
 
 ## Fases
@@ -71,8 +79,9 @@ Handler → UseCase → ContainerRuntime Interface → client-go → k3s        
 - [x] **Fase containers (k3s) — código**: spec `docs/superpowers/specs/2026-09-10-containers-k3s-design.md`, plano `docs/superpowers/plans/2026-09-10-containers-k3s.md`. Backend (`internal/kube`, `internal/k3s`, usecase, API, WebSocket) e frontend (`/containers/*`) implementados com testes.
 - [x] **Fase containers — bootstrap e smoke**: `k3s-server` criado no pool `researchers` (`K3S_NODE_POOL`), PodSecurity ajustado para `baseline`. Da VPN só a porta 22 passa: testar do notebook exige túnel SSH para 6443 (ver spec, "Desvios registrados").
 - [x] **Fase containers — ponta a ponta pelo front** (2026-09-11): ubuntu (terminal) e postgres (env, volume, TCP/NodePort, logs, psql) criados, usados e excluídos pelo front. Só o acesso externo `ip:porta` não foi testado (VPN bloqueia); validar quando o backend rodar na VM do laboratório.
-- [ ] **Verificar fluxo de VMs Ubuntu**: o provider bpg só manda `pool` no clone quando `pool_id` está definido; se o front não mandar pool, o token recebe 403. Confirmar que `POST /api/vms` ainda funciona.
+- [x] **Verificar fluxo de VMs Ubuntu** (2026-09-25): aluno recebia 403 porque o front mandava `pool: students`, que não existe no Proxmox. Agora o backend escolhe o pool pelo perfil (`PROXMOX_POOL_ALUNO` / `PROXMOX_POOL_PESQUISADOR`, default `researchers`) e ignora o do cliente. Clone Ubuntu como aluno testado (VM criada e excluída). Para separar alunos: admin cria pool `students`, dá ao token o mesmo papel de `/pool/researchers` e troca `PROXMOX_POOL_ALUNO`.
 - [ ] **Cadastro por convite — parte 2** (spec `docs/superpowers/specs/2026-09-11-cadastro-usuarios-fluxo.md`): status/código de ativação no `User`, e-mail SMTP, `POST /api/auth/first-access`, tela `/primeiro-acesso` real, remover `/cadastro` público, `/cadastrar-usuario` sem senha.
-- [ ] **Perfil do usuário — parte 3** (mesma spec): tela "Meu perfil" para alterar nome e senha (senha atual obrigatória); e-mail somente leitura. `GET/PATCH /api/me`, `PUT /api/me/password`, coluna `name`.
-- [ ] **Usuários cadastrados — parte 4** (mesma spec): card na página inicial só para pesquisador → `/usuarios` lista alunos e pesquisadores; pesquisador só pode alterar e-mail ou excluir; **excluir usuário apaga todas as VMs e containers dele** (deprovisiona antes de remover). `GET/PATCH/DELETE /api/users[/:id]` com RequireRole("pesquisador").
+- [x] **Perfil do usuário — parte 3** (2026-09-25): ícone de perfil no header → `/meu-perfil` (nome e senha; e-mail só leitura). `GET/PATCH /api/me`, `PUT /api/me/password` (senha atual errada → 403, não 401), coluna `users.name` (migration 004).
+- [x] **Usuários cadastrados — parte 4** (2026-09-25): card "Usuários cadastrados" (só pesquisador) → `/usuarios`: filtro por perfil, alterar e-mail (409 se em uso) e excluir (não a si mesmo). Excluir apaga VMs e containers antes; se algo falhar, usuário fica e responde 503. `GET/PATCH/DELETE /api/users[/:id]` com RequireRole("pesquisador"). O namespace `u-xxxx` do usuário também é apagado.
+- [x] **GPU por resource mapping + bloqueio de start** (2026-11-17, spec acima): código e testes prontos; smokes reais `--gpu` (01 e 02) e `--gpu-conflict=gpu-rtx4060-01` verdes (a 01 estava em uso pela VM 101: recusa confirmada, `already in use`). Fluxo validado pelo front pelo autor (seção 9, passos 4 e 5).
 - [ ] **Containers v2**: start/stop/restart, build por Dockerfile/tarball (kaniko), TLS no Ingress, GPU.

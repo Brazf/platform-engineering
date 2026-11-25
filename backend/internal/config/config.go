@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -33,22 +34,25 @@ type Config struct {
 	ProxmoxNode               string
 	ProxmoxTokenID            string
 	ProxmoxTokenSecret        string
-	ProxmoxGPUPCI             string // ex: "0000:01:00.0,pcie=1" — vazio desabilita passthrough
-	ProxmoxUbuntuTemplateVMID int    // VMID do template cloud-init Ubuntu clonado para VMs Ubuntu
+	ProxmoxGPUMappings        []string // nomes de resource mapping PCI (ordem = prioridade); vazio desabilita GPU
+	ProxmoxUbuntuTemplateVMID int      // VMID do template cloud-init Ubuntu clonado para VMs Ubuntu
 
 	// Terraform
 	TerraformBin     string // caminho do binário terraform. Default: "terraform" (resolve via PATH)
 	TerraformWorkdir string // raiz dos workspaces por VM
 
 	// k3s / containers
-	K3SNodeIP       string // IP fixo da VM do cluster em CIDR, ex: "10.0.0.50/24"
-	K3SNodeGateway  string
-	K3SNodePool     string // resource pool do Proxmox onde a VM do cluster nasce
-	K3SNodeCPU      int
-	K3SNodeMemoryMB int
-	K3SNodeDiskGB   int
-	IngressDomain   string // vazio → containers HTTP expostos por NodePort
-	KubeconfigPath  string // default: <TerraformWorkdir>/k3s/kubeconfig
+	K3SNodeIP      string // IP fixo da VM do cluster em CIDR, ex: "10.0.0.50/24"
+	K3SNodeGateway string
+	K3SNodePool    string // resource pool do Proxmox onde a VM do cluster nasce
+	// Resource pool do Proxmox para as VMs de cada perfil (o token precisa de VM.Allocate no pool)
+	ProxmoxPoolAluno       string
+	ProxmoxPoolPesquisador string
+	K3SNodeCPU             int
+	K3SNodeMemoryMB        int
+	K3SNodeDiskGB          int
+	IngressDomain          string // vazio → containers HTTP expostos por NodePort
+	KubeconfigPath         string // default: <TerraformWorkdir>/k3s/kubeconfig
 
 	// Server
 	ServerPort string
@@ -79,6 +83,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("K3S_NODE_DISK_GB inválido: %w", err)
 	}
+	gpuMappings, err := parseGPUMappings(os.Getenv("PROXMOX_GPU_MAPPINGS"), os.Getenv("PROXMOX_GPU_PCI"))
+	if err != nil {
+		return nil, err
+	}
 	tfWorkdir := getEnv("TERRAFORM_WORKDIR", "/var/lib/proxlab/terraform")
 
 	cfg := &Config{
@@ -94,13 +102,15 @@ func Load() (*Config, error) {
 		ProxmoxNode:               getEnv("PROXMOX_NODE", "pve"),
 		ProxmoxTokenID:            getEnv("PROXMOX_TOKEN_ID", ""),
 		ProxmoxTokenSecret:        getEnv("PROXMOX_TOKEN_SECRET", ""),
-		ProxmoxGPUPCI:             getEnv("PROXMOX_GPU_PCI", ""),
+		ProxmoxGPUMappings:        gpuMappings,
 		ProxmoxUbuntuTemplateVMID: ubuntuTemplate,
 		TerraformBin:              getEnv("TERRAFORM_BIN", "terraform"),
 		TerraformWorkdir:          tfWorkdir,
 		K3SNodeIP:                 getEnv("K3S_NODE_IP", ""),
 		K3SNodeGateway:            getEnv("K3S_NODE_GATEWAY", ""),
 		K3SNodePool:               getEnv("K3S_NODE_POOL", "researchers"),
+		ProxmoxPoolAluno:          getEnv("PROXMOX_POOL_ALUNO", "researchers"),
+		ProxmoxPoolPesquisador:    getEnv("PROXMOX_POOL_PESQUISADOR", "researchers"),
 		K3SNodeCPU:                k3sCPU,
 		K3SNodeMemoryMB:           k3sMem,
 		K3SNodeDiskGB:             k3sDisk,
@@ -163,6 +173,41 @@ func (c *Config) validate() error {
 		}
 	}
 	return nil
+}
+
+var gpuMappingName = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
+
+// parseGPUMappings interpreta PROXMOX_GPU_MAPPINGS (nomes de resource mapping separados por
+// vírgula). Se vazia, aceita o legado PROXMOX_GPU_PCI no formato "mapping=<nome>[,opções]".
+// Endereço PCI cru é rejeitado: o provider bpg não o aceita com API token.
+func parseGPUMappings(mappings, legacy string) ([]string, error) {
+	if strings.TrimSpace(mappings) == "" {
+		legacy = strings.TrimSpace(legacy)
+		if legacy == "" {
+			return nil, nil
+		}
+		first, _, _ := strings.Cut(legacy, ",")
+		name, ok := strings.CutPrefix(strings.TrimSpace(first), "mapping=")
+		if !ok {
+			return nil, fmt.Errorf("PROXMOX_GPU_PCI inválido: use PROXMOX_GPU_MAPPINGS com nomes de resource mapping (endereço PCI não é suportado com API token)")
+		}
+		mappings = name
+	}
+
+	var out []string
+	seen := map[string]bool{}
+	for _, item := range strings.Split(mappings, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" || seen[item] {
+			continue
+		}
+		if !gpuMappingName.MatchString(item) {
+			return nil, fmt.Errorf("PROXMOX_GPU_MAPPINGS inválido: %q não é um nome de resource mapping", item)
+		}
+		seen[item] = true
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 func getEnv(key, fallback string) string {

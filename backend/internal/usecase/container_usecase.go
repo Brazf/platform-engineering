@@ -236,6 +236,20 @@ func (uc *ContainerUseCase) Delete(ctx context.Context, userID, id uuid.UUID) er
 	return nil
 }
 
+// DeleteUserNamespace apaga o namespace do usuário no cluster (usado ao excluir a conta,
+// depois que os containers já saíram). Sem cluster configurado não há o que apagar.
+func (uc *ContainerUseCase) DeleteUserNamespace(ctx context.Context, userID uuid.UUID) error {
+	if uc.runtime == nil {
+		return nil
+	}
+	ns := entity.NamespaceFor(userID)
+	if err := uc.runtime.DeleteNamespace(ctx, ns); err != nil {
+		log.Printf("[container] DeleteNamespace %s falhou: %v", ns, err)
+		return repository.ErrRuntimeUnavailable
+	}
+	return nil
+}
+
 // FindOwned devolve o container se pertencer ao usuário; senão ErrContainerNotFound (não vaza existência).
 func (uc *ContainerUseCase) FindOwned(ctx context.Context, userID, id uuid.UUID) (*entity.Container, error) {
 	c, err := uc.repo.FindByID(ctx, id)

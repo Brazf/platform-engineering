@@ -28,6 +28,7 @@ type VM struct {
 	Pool        string    `gorm:"default:''"                     json:"pool"`
 	Tags        string    `gorm:"default:''"                     json:"tags"` // separado por ";" igual ao Proxmox
 	RequireGPU  bool      `gorm:"default:false"                  json:"require_gpu"`
+	GPUMapping  string    `gorm:"column:gpu_mapping;type:varchar(64);not null;default:''" json:"gpu_mapping"` // resource mapping da GPU; vazio = sem GPU (ou VM legada)
 	Status      VMStatus  `gorm:"type:varchar(20);not null;default:'creating'" json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

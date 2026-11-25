@@ -38,6 +38,11 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id uuid.UUID) (*entity.User
 	return args.Get(0).(*entity.User), args.Error(1)
 }
 
+func (m *mockUserRepo) List(ctx context.Context) ([]entity.User, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]entity.User), args.Error(1)
+}
+
 func (m *mockUserRepo) Update(ctx context.Context, user *entity.User) error {
 	return m.Called(ctx, user).Error(0)
 }
