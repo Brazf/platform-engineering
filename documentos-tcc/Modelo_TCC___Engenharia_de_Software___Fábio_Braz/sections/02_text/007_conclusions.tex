@@ -7,7 +7,10 @@ Com base nos objetivos estabelecidos, pode-se afirmar que a Plataforma de Engenh
 
 \par O acesso a GPU para cargas de IA e \textit{machine learning} também foi atendido: o \textit{backend} anexa à máquina virtual, por \textit{pass-through}, uma das duas placas do servidor, balanceando o uso entre elas e impedindo que duas máquinas liguem a mesma placa ao mesmo tempo. A validação em ambiente real (Seção~\ref{sec:val_gpu}) confirmou a GPU visível dentro da VM.
 
+\par Como limitações, destaca-se que a validação foi funcional, conduzida pelo autor em um único nó Proxmox VE e em um cluster k3s de nó único, sem medição controlada de tempo nem participação de um grupo de usuários. Ainda assim, os fluxos completos de criação, uso e remoção de recursos foram exercitados contra a infraestrutura real do laboratório, o que sustenta a viabilidade técnica da proposta.
+
 \section{Trabalhos Futuros}
+\label{sec:trabalhos_futuros}
 
 Entre os itens que permanecem como trabalho futuro, destacam-se:
 
@@ -17,6 +20,10 @@ Entre os itens que permanecem como trabalho futuro, destacam-se:
     \item TLS no \textit{Ingress} dos contêineres expostos via domínio, hoje disponibilizados apenas em HTTP.
 
     \item Validação do acesso externo a contêineres por meio do par \texttt{ip:porta} do \textit{NodePort}, não realizada durante o desenvolvimento devido a restrições da rede VPN utilizada para acesso ao ambiente de laboratório.
+
+    \item Avaliação quantitativa da plataforma, com a medição controlada do tempo de provisionamento em comparação ao processo manual e a aplicação de um questionário de usabilidade a alunos e pesquisadores do laboratório.
+
+    \item Conclusão do cadastro por convite, em que o aluno ativa a própria conta no primeiro acesso por meio de um código enviado por e-mail, e integração ao \textit{backend} da instalação automática de drivers em VMs com GPU (Apêndice~A).
 
 \end{itemize}
 

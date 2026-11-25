@@ -13,7 +13,7 @@
 
 \usepackage[T1]{fontenc}
 \usepackage{quoting}
-\usepackage[brazil]{babel}
+\usepackage[brazilian]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage{amsfonts}
 \usepackage{amssymb}
@@ -54,7 +54,13 @@
 \titleformat{\chapter}[display]
   {\normalfont\huge\bfseries}{\thechapter}{20pt}{\Huge}
 \renewcommand{\chaptermark}[1]{\markboth{\MakeUppercase{#1}}{}}
-\renewcommand{\sectionmark}[1]{\markright{\MakeUppercase{#1}}{}}
+% número e título da seção no mesmo mark, para o cabeçalho não misturar seções
+\newcommand{\secmark}[2]{#2}
+\makeatletter
+\newcommand{\headsecnum}{{\let\secmark\@firstoftwo\rightmark}}
+\newcommand{\headsectitle}{{\let\secmark\@secondoftwo\rightmark}}
+\makeatother
+\renewcommand{\sectionmark}[1]{\markright{\protect\secmark{\thesection}{\MakeUppercase{#1}}}}
 
 \renewcommand{\headrulewidth}{0pt}
 \setlength{\headheight}{15.1pt}
@@ -139,7 +145,7 @@
 	
 	\setcounter{tocdepth}{2}
 	%\fancyhead[LE]{\thepage\hspace{2em}\footnotesize{\leftmark}}
-	\fancyhead[RO]{{\footnotesize\rightmark}\hspace{2em}\thepage}
+	\fancyhead[RO]{{\footnotesize\headsectitle}\hspace{2em}\thepage}
 	
 	\include{sections/01_pre_text/001_coverpage}
 	\newpage
@@ -163,7 +169,7 @@
 	
 	\mainmatter	
 	% cabeçalho para as páginas de todos os capítulos
-	\fancyhead[LO]{\thesection}
+	\fancyhead[LO]{\headsecnum}
 	
 	%\singlespacing            % espaçamento simples
 	\onehalfspacing            % espaçamento um e meio
@@ -179,6 +185,7 @@
 	
 	
 	\fancyhead[RO]{\thepage}
+	\fancyhead[LO]{}
     \printbibliography[heading=bibintoc]
     \clearpage
     
